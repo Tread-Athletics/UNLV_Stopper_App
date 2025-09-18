@@ -1111,7 +1111,7 @@ def main():
                             if not combined_img.exists():
                                 st.error(f"Expected output file not found: {combined_img}")
                             else:
-                                st.image(str(combined_img), use_column_width=True)
+                                st.image(str(combined_img), use_container_width=True)
                                 spinner_placeholder.empty()  # Remove overlay as soon as PNG is shown
                     except Exception as e:
                         st.error(f"Error generating Execution+ plots: {str(e)}")
@@ -1242,7 +1242,7 @@ def main():
                             
                 #             # Display the generated plot
                 #             combined_img = out_dir / f"execution_plus_{selected_pitcher.replace(', ', '_')}_platoon.png"
-                #             st.image(str(combined_img), use_column_width=True)
+                #             st.image(str(combined_img), use_container_width=True)
                 #             spinner_placeholder.empty()  # Remove overlay as soon as PNG is shown
                 #     except Exception as e:
                 #         st.error(f"Error generating Execution+ plots: {str(e)}")

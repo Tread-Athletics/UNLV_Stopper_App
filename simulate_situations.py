@@ -36,6 +36,7 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
         return pd.DataFrame()
 
     try:
+        st.info(f"Model type: {type(mdl)}")
         # Load game states
         gs = pl.read_parquet('game_states_with_roles.parquet')
         valid_states = (
@@ -100,6 +101,7 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
     
     # Run simulations
     results = []
+    predictions_debug = []
     progress_bar = st.progress(0)
     total_sims = len(situations)
 
@@ -138,6 +140,8 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
                 paths=500,  # 500 Monte Carlo paths
                 pitcher_hand=pitcher_hand
             )
+            if i < 10:
+                predictions_debug.append(exp_delta)
             # Calculate standardized score
             standardized_score = standardize_score(exp_delta)
             # Apply penalty for do-not-pitch pitchers
@@ -157,6 +161,7 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
         except Exception as e:
             continue
         progress_bar.progress((i + 1) / total_sims)
+    st.info(f"First 10 predictions: {np.array(predictions_debug)}")
     return pd.DataFrame(results)
 
 def analyze_simulation_results(results_df: pd.DataFrame):
