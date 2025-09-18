@@ -38,6 +38,7 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
     try:
         # Load game states
         gs = pl.read_parquet('game_states_with_roles.parquet')
+        st.info(f"Loaded game_states_with_roles.parquet with {gs.height} rows.")
 
         # Extract game state components
         valid_states = (
@@ -45,9 +46,10 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
             .filter(pl.col('game_state').is_not_null())
             .to_pandas()
         )
+        st.info(f"Valid states after filtering nulls: {len(valid_states)} rows.")
 
         if valid_states.empty:
-            st.error("No game states available")
+            st.error("No game states available after filtering nulls.")
             return pd.DataFrame()
 
         parts = valid_states['game_state'].str.split('_')
@@ -78,10 +80,14 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
         valid_states['phase'] = valid_states['inning'].apply(phase_from_inning)
         valid_states['score_ctx'] = valid_states['score_diff'].apply(score_context)
 
+        st.info(f"Unique phases in data: {valid_states['phase'].unique().tolist()}")
+        st.info(f"Unique score contexts in data: {valid_states['score_ctx'].unique().tolist()}")
+
         situations = []
         for phase in PHASES:
             for score in SCORE_CONTEXTS:
                 subset = valid_states[(valid_states['phase'] == phase) & (valid_states['score_ctx'] == score)]
+                st.info(f"Phase: {phase}, Score: {score}, Subset size: {len(subset)}")
                 if subset.empty:
                     continue
                 sample_n = 50
@@ -97,8 +103,7 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
                         'score_ctx': score,
                         'game_state': row['game_state']
                     })
-
-        st.info(f"Sampling {len(situations)} situations across phases and score contexts")
+        st.info(f"Total situations sampled: {len(situations)}")
 
     except Exception as e:
         st.error(f"Error loading game states: {str(e)}")
@@ -116,6 +121,9 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
     except Exception:
         pitcher_hand = 'Right'
 
+    st.info(f"Number of profiles for selected pitcher: {len(profiles)}")
+    st.info(f"First 3 situation dicts: {situations[:3]}")
+
     for i, situation in enumerate(situations):
         try:
             # Calculate leverage index for the situation
@@ -128,7 +136,6 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
                 on3=int(situation['runners'][2]),
                 score_diff=situation['score_diff']
             )
-            
             # Simulate performance
             exp_delta = simulate_expected_delta(
                 mdl=mdl,
@@ -145,14 +152,11 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
                 paths=500,  # 500 Monte Carlo paths
                 pitcher_hand=pitcher_hand
             )
-            
             # Calculate standardized score
             standardized_score = standardize_score(exp_delta)
-            
             # Apply penalty for do-not-pitch pitchers
             if selected_pitcher in DO_NOT_PITCH:
                 standardized_score -= 15  # Subtract 15 points from their scores
-            
             results.append({
                 'Pitcher': selected_pitcher,
                 'Game_State': situation['game_state'],
@@ -164,12 +168,13 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
                 'Stopper+': standardized_score,
                 'Pitcher_Hand': pitcher_hand,
             })
-            
         except Exception as e:
+            st.error(f"Simulation error at situation {i}: {e}")
             continue
-        
         progress_bar.progress((i + 1) / total_sims)
-    
+    st.info(f"Total simulation results: {len(results)}")
+    if not results:
+        st.error("No simulation results generated. Check above for debugging info.")
     return pd.DataFrame(results)
 
 def analyze_simulation_results(results_df: pd.DataFrame):
