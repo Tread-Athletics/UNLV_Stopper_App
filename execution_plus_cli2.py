@@ -38,11 +38,13 @@ plt.rcParams['axes.facecolor'] = 'white'
 # data_path = 'college_unlv_with_base_state.csv'  # or None to use DB
 # query_since = os.getenv('QUERY_SINCE', '2025-01-01')
 
+import streamlit as st
+
 def main(argv=None):
     import sys
     parser = argparse.ArgumentParser(description="Run Execution+ grid predictions for a pitcher name.")
     parser.add_argument('--pitcher', type=str, default='Lane, Carson', help='Pitcher name, e.g., "Arnold, Jamie"')
-    parser.add_argument('--query-since', type=str, default=os.getenv('QUERY_SINCE', '2025-01-01'), help='Minimum date (YYYY-MM-DD)')
+    parser.add_argument('--query-since', type=str, default=st.secrets.get('QUERY_SINCE', '2025-01-01'), help='Minimum date (YYYY-MM-DD)')
     parser.add_argument('--data-path', type=str, default='college_unlv_with_base_state.csv', help='Path to CSV/Parquet with TrackMan-like columns (College_TM_Data style)')
     parser.add_argument('--save-dir', type=str, default='outputs', help='Directory to write CSV/PNG outputs (default: outputs)')
     parser.add_argument('--models-root', type=str, default=None, help='Root folder to search for model files if hints fail')
@@ -83,13 +85,13 @@ def main(argv=None):
     else:
         if sqlalchemy is None:
             raise RuntimeError('SQLAlchemy not installed and data_path missing; cannot query DB.')
-        host = os.getenv('DB_HOST', '34.230.115.21')
-        user = os.getenv('DB_USER', 'standard_user')
-        pwd = os.getenv('DB_PASSWORD')
+        host = st.secrets.get('DB_HOST', '34.230.115.21')
+        user = st.secrets.get('DB_USER', 'standard_user')
+        pwd = st.secrets.get('DB_PASSWORD')
         if not pwd:
-            raise ValueError('DB_PASSWORD environment variable is required for DB mode')
-        dbname = os.getenv('DB_NAME', 'tread_database_ec2')
-        port = int(os.getenv('DB_PORT', '3306'))
+            raise ValueError('DB_PASSWORD secret is required for DB mode')
+        dbname = st.secrets.get('DB_NAME', 'tread_database_ec2')
+        port = int(st.secrets.get('DB_PORT', '3306'))
         url = f'mysql+pymysql://{user}:{pwd}@{host}:{port}/{dbname}?charset=utf8mb4'
         engine = create_engine(url, pool_recycle=3600, pool_pre_ping=True, future=True)
         sql = text(

@@ -3,21 +3,23 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables at startup
-load_dotenv()
+# load_dotenv()
 
 # Validate required environment variables
-db_password = os.getenv("DB_PASSWORD")
-if not db_password:
-    raise ValueError("DB_PASSWORD environment variable is required")
+try:
+    db_password = st.secrets["DB_PASSWORD"]
+except KeyError:
+    raise ValueError("DB_PASSWORD secret is required")
 
 # Helper function for database connections
 def get_db_connection():
-    """Create a database connection using environment variables."""
+    """Create a database connection using Streamlit secrets."""
+    import mysql.connector
     return mysql.connector.connect(
-        host=os.getenv("DB_HOST", "34.230.115.21"),
-        user=os.getenv("DB_USER", "standard_user"),
-        password=os.getenv("DB_PASSWORD"),
-        database=os.getenv("DB_NAME", "tread_database_ec2")
+        host=st.secrets.get("DB_HOST", "34.230.115.21"),
+        user=st.secrets.get("DB_USER", "standard_user"),
+        password=st.secrets["DB_PASSWORD"],
+        database=st.secrets.get("DB_NAME", "tread_database_ec2")
     )
 
 # Configure page to completely hide sidebar - MUST be first Streamlit command

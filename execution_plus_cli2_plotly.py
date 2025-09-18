@@ -12,6 +12,7 @@ import itertools
 import xgboost as xgb
 import plotly.graph_objs as go
 import plotly.io as pio
+import streamlit as st
 
 try:
     import sqlalchemy  # type: ignore
@@ -338,7 +339,7 @@ def main(argv=None):
     import sys
     parser = argparse.ArgumentParser(description="Run Execution+ grid predictions for a pitcher name (Plotly version).")
     parser.add_argument('--pitcher', type=str, default='Lane, Carson', help='Pitcher name, e.g., "Arnold, Jamie"')
-    parser.add_argument('--query-since', type=str, default=os.getenv('QUERY_SINCE', '2025-01-01'), help='Minimum date (YYYY-MM-DD)')
+    parser.add_argument('--query-since', type=str, default=st.secrets.get('QUERY_SINCE', '2025-01-01'), help='Minimum date (YYYY-MM-DD)')
     parser.add_argument('--data-path', type=str, default='college_unlv_with_base_state.csv', help='Path to CSV/Parquet with TrackMan-like columns (College_TM_Data style)')
     parser.add_argument('--save-dir', type=str, default='outputs', help='Directory to write HTML outputs (default: outputs)')
     parser.add_argument('--models-root', type=str, default=None, help='Root folder to search for model files if hints fail')
