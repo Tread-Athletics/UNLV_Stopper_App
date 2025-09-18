@@ -248,15 +248,15 @@ def analyze_simulation_results(results_df: pd.DataFrame):
         return f'background-color: rgb({r},{g},{b})'
 
     # Build a DataFrame of color codes matching the shape of pivot
-    def color_df(pivot, z_pivot):
-        color_matrix = pd.DataFrame(index=pivot.index, columns=pivot.columns)
-        for r in pivot.index:
-            for c in pivot.columns:
+    def color_df(df, z_pivot):
+        color_matrix = pd.DataFrame(index=df.index, columns=df.columns)
+        for r in df.index:
+            for c in df.columns:
                 z = z_pivot.loc[r, c]
                 color_matrix.loc[r, c] = z_to_color(z)
         return color_matrix
 
-    styled_pivot = pivot.style.apply(lambda df: color_df(df, z_pivot), axis=None).format(precision=3)
+    styled_pivot = pivot.style.apply(color_df, z_pivot=z_pivot, axis=None).format(precision=3)
     st.dataframe(styled_pivot, use_container_width=True)
 
     # --- Rest of function unchanged (role recommendations, etc) ---
