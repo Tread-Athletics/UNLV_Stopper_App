@@ -1241,7 +1241,7 @@ def main():
                             
                             # Display the generated plot
                             combined_img = out_dir / f"execution_plus_{selected_pitcher.replace(', ', '_')}_platoon.png"
-                            st.image(str(combined_img), use_column_width=True)
+                            # st.image(str(combined_img), use_column_width=True)
                             spinner_placeholder.empty()  # Remove overlay as soon as PNG is shown
                     except Exception as e:
                         st.error(f"Error generating Execution+ plots: {str(e)}")
