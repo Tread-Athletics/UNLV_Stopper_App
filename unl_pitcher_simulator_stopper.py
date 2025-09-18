@@ -1084,12 +1084,12 @@ def main():
                         if raw_tm.empty:
                             st.warning("No TrackMan rows found for this pitcher since 2025-01-01.")
                         else:
-                            out_dir = Path("outputs/streamlit_ep_plots")
+                            out_dir = Path(__file__).parent / "outputs" / "streamlit_ep_plots"
                             out_dir.mkdir(parents=True, exist_ok=True)
                             cli_args = [
                                 "--pitcher", selected_pitcher,
                                 "--query-since", "2025-01-01",
-                                "--save-dir", str(out_dir),
+                                "--save-dir", str(out_dir.resolve()),
                                 "--models-root", ".",
                                 "--bins", "20",
                                 "--cmin", "0",
@@ -1097,12 +1097,21 @@ def main():
                             ]
                             import subprocess
                             import sys
-                            subprocess.run([
-                                sys.executable, "-m", "execution_plus_cli2", *cli_args
-                            ], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            result = subprocess.run(
+                                [sys.executable, "execution_plus_cli2.py", *cli_args],
+                                capture_output=True,
+                                text=True
+                            )
+                            print("STDOUT:", result.stdout)
+                            print("STDERR:", result.stderr)
+                            if result.returncode != 0:
+                                st.error(f"Execution+ subprocess failed: {result.stderr}")
                             combined_img = out_dir / f"execution_plus_{selected_pitcher.replace(', ', '_')}_platoon.png"
-                            st.image(str(combined_img), use_column_width=True)
-                            spinner_placeholder.empty()  # Remove overlay as soon as PNG is shown
+                            if not combined_img.exists():
+                                st.error(f"Expected output file not found: {combined_img}")
+                            else:
+                                st.image(str(combined_img), use_column_width=True)
+                                spinner_placeholder.empty()  # Remove overlay as soon as PNG is shown
                     except Exception as e:
                         st.error(f"Error generating Execution+ plots: {str(e)}")
 
@@ -1215,12 +1224,12 @@ def main():
                             st.warning("No TrackMan rows found for this pitcher since 2025-01-01.")
                         else:
                             # Only keep the CLI call for Execution+
-                            out_dir = Path("outputs/streamlit_ep_plots")
+                            out_dir = Path(__file__).parent / "outputs" / "streamlit_ep_plots"
                             out_dir.mkdir(parents=True, exist_ok=True)
                             cli_args = [
                                 "--pitcher", selected_pitcher,
                                 "--query-since", "2025-01-01",
-                                "--save-dir", str(out_dir),
+                                "--save-dir", str(out_dir.resolve()),
                                 "--models-root", ".",
                                 "--bins", "20",
                                 "--cmin", "0",
