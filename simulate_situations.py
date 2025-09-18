@@ -81,7 +81,7 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
                 subset = valid_states[(valid_states['phase'] == phase) & (valid_states['score_ctx'] == score)]
                 if subset.empty:
                     continue
-                sample_n = 50
+                sample_n = 25
                 sampled = subset.sample(n=sample_n, replace=len(subset) < sample_n, random_state=42)
                 for _, row in sampled.iterrows():
                     situations.append({
@@ -247,11 +247,16 @@ def analyze_simulation_results(results_df: pd.DataFrame):
         b = int(b1 + (b2 - b1) * f)
         return f'background-color: rgb({r},{g},{b})'
 
-    def color_scale_blocks(val, z):
-        return z_to_color(z)
+    # Build a DataFrame of color codes matching the shape of pivot
+    def color_df(pivot, z_pivot):
+        color_matrix = pd.DataFrame(index=pivot.index, columns=pivot.columns)
+        for r in pivot.index:
+            for c in pivot.columns:
+                z = z_pivot.loc[r, c]
+                color_matrix.loc[r, c] = z_to_color(z)
+        return color_matrix
 
-    # Display matrix with color bar
-    styled_pivot = pivot.style.apply(lambda df: [[color_scale_blocks(v, z_pivot.loc[idx, col]) for col, v in row.items()] for idx, row in df.iterrows()], axis=None).format(precision=3)
+    styled_pivot = pivot.style.apply(lambda df: color_df(df, z_pivot), axis=None).format(precision=3)
     st.dataframe(styled_pivot, use_container_width=True)
 
     # --- Rest of function unchanged (role recommendations, etc) ---
