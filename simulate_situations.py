@@ -4,6 +4,7 @@ import streamlit as st
 import numpy as np
 from typing import Dict, Any
 from stopper_predictor import simulate_expected_delta
+import os
 
 # List of pitchers that should not be recommended
 DO_NOT_PITCH = ['Barna, Cal', 'Rogers, Dylan']
@@ -160,183 +161,146 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
 
 def analyze_simulation_results(results_df: pd.DataFrame):
     """Provide condensed, categorized pitching recommendations."""
+    import pandas as pd
+    import numpy as np
+    import streamlit as st
+    import os
+
     if results_df.empty:
         st.error("No results to analyze")
         return
 
     pitcher_name = results_df['Pitcher'].iloc[0] if not results_df.empty else "Unknown"
 
-    # Calculate performance by game phase
+    # Calculate performance by game phase and score context
     phase_analysis = results_df.groupby(['Phase', 'Score_Context']).agg(
         Impact=('Expected_Impact', 'mean'),
         Samples=('Expected_Impact', 'count'),
         Avg_Leverage=('Leverage', 'mean')
     ).round(4)
 
-    # Calculate overall phase effectiveness
-    overall_phase = results_df.groupby('Phase').agg(
-        Expected_Impact=('Expected_Impact', 'mean'),
-        Leverage=('Leverage', 'mean')
-    ).round(4)
+    # --- Load baselines ---
+    baseline_path = os.path.join(os.path.dirname(__file__), 'team_role_baselines.csv')
+    baselines = pd.read_csv(baseline_path)
+    # Filter to Situation rows
+    sit_baselines = baselines[baselines['Category'] == 'Situation']
+    # Build lookup: (Phase, Score_Context) -> (mean, std)
+    baseline_lookup = {}
+    for _, row in sit_baselines.iterrows():
+        phase, score_ctx = row['Subcategory'].split('_', 1)
+        baseline_lookup[(phase, score_ctx)] = (row['Mean'], row['Std'])
 
-    # Calculate score context effectiveness
-    score_analysis = results_df.groupby('Score_Context').agg(
-        Expected_Impact=('Expected_Impact', 'mean'),
-        Leverage=('Leverage', 'mean')
-    ).round(4)
-
-    st.markdown(f"### Quick Analysis: {pitcher_name}")
-
-    # Display two columns: Game Phase and Score Context
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("#### Game Phase Performance")
-        # Create phase summary with color indicators
-        phase_summary = pd.DataFrame({
-            'Phase': overall_phase.index,
-            'Impact': overall_phase['Expected_Impact'].round(3),
-            'LI': overall_phase['Leverage'].round(2)
-        }).sort_values('Impact', ascending=False)
-
-        # Add recommendation symbols
-        phase_summary['Grade'] = ['🟢' if x == phase_summary['Impact'].max() else 
-                                '🟡' if x > phase_summary['Impact'].mean() else 
-                                '🔴' for x in phase_summary['Impact']]
-        # Display with custom formatting
-        for _, row in phase_summary.iterrows():
-            st.markdown(f"{row['Grade']} **{row['Phase']}**")
-
-    with col2:
-        st.markdown("#### Score Context Performance")
-        # Create score context summary
-        score_summary = pd.DataFrame({
-            'Context': score_analysis.index,
-            'Impact': score_analysis['Expected_Impact'].round(3),
-            'LI': score_analysis['Leverage'].round(2)
-        }).sort_values('Impact', ascending=False)
-
-        # Add recommendation symbols
-        score_summary['Grade'] = ['🟢' if x == score_summary['Impact'].max() else 
-                                '🟡' if x > score_summary['Impact'].mean() else 
-                                '🔴' for x in score_summary['Impact']]
-        # Display with custom formatting
-        for _, row in score_summary.iterrows():
-            st.markdown(f"{row['Grade']} **{row['Context']}**")
-
-    # Detailed Breakdown
-    st.markdown("#### Detailed Situation Analysis")
-    # Create a clean, organized matrix of performance
+    # --- Build matrix in requested order ---
+    PHASES = ['Early', 'Middle', 'Late']
+    SCORE_CONTEXTS = ['Down Lots', 'Down Little', 'Tight', 'Up Little', 'Up Lots']
     matrix_data = []
     for phase in PHASES:
         for score in SCORE_CONTEXTS:
             try:
                 data = phase_analysis.loc[(phase, score)]
+                impact = data['Impact']
+                # Get baseline mean/std
+                mean, std = baseline_lookup.get((phase, score), (0, 1))
+                z = (impact - mean) / std if std > 0 else 0
                 matrix_data.append({
                     'Phase': phase,
                     'Score': score,
-                    'Impact': data['Impact'],
+                    'Impact': impact,
+                    'Z': z,
                     'LI': data['Avg_Leverage'],
                     'Samples': data['Samples']
                 })
             except KeyError:
-                continue
+                matrix_data.append({
+                    'Phase': phase,
+                    'Score': score,
+                    'Impact': np.nan,
+                    'Z': 0,
+                    'LI': np.nan,
+                    'Samples': 0
+                })
     matrix_df = pd.DataFrame(matrix_data)
-    # Defensive check before pivot
-    if not isinstance(matrix_df, pd.DataFrame) or matrix_df.empty:
-        st.error("No situation matrix data available for analysis.")
-        return
-    if 'Phase' not in matrix_df.columns or 'Score' not in matrix_df.columns:
-        st.error(f"Missing required columns in situation matrix: {matrix_df.columns.tolist()}")
-        return
-    if matrix_df.duplicated(subset=['Phase', 'Score']).any():
-        st.error("Duplicate Phase/Score pairs found in situation matrix. Please check the simulation logic.")
-        return
-    try:
-        pivot = matrix_df.pivot(index='Phase', columns='Score', values='Impact')
-    except Exception as e:
-        st.error(f"Error creating pivot table: {e}")
-        return
-    # Add color styling - clean block style
-    def color_scale_blocks(val):
-        if pd.isna(val):
-            return ''
-        # Red to Green color scale - solid blocks
-        if val == pivot.max().max():
-            return 'background-color: #28a745'  # Strong green
-        elif val > pivot.mean().mean():
-            return 'background-color: #5cb85c'  # Light green
+    # Pivot for display
+    pivot = matrix_df.pivot(index='Phase', columns='Score', values='Impact').reindex(index=PHASES, columns=SCORE_CONTEXTS)
+    z_pivot = matrix_df.pivot(index='Phase', columns='Score', values='Z').reindex(index=PHASES, columns=SCORE_CONTEXTS)
+
+    # --- Color function: red-white-green by z-score ---
+    def z_to_color(z):
+        # Clamp z to [-2.5, 2.5] for color scaling
+        z = np.clip(z, -2.5, 2.5)
+        # Red (low) to white (mean) to green (high)
+        if np.isnan(z):
+            return 'background-color: #ffffff'  # white for missing
+        # Interpolate: z=-2.5 (red #dc3545), z=0 (white #ffffff), z=2.5 (green #28a745)
+        if z < 0:
+            # Red to white
+            r1, g1, b1 = (220, 53, 69)  # red
+            r2, g2, b2 = (255, 255, 255)  # white
+            f = (z + 2.5) / 2.5  # 0 at -2.5, 1 at 0
         else:
-            return 'background-color: #dc3545'  # Red
-    # Display matrix with colors only, no numbers
-    styled_pivot = pivot.style.applymap(color_scale_blocks).format("")
+            # White to green
+            r1, g1, b1 = (255, 255, 255)  # white
+            r2, g2, b2 = (40, 167, 69)  # green
+            f = z / 2.5  # 0 at 0, 1 at 2.5
+        r = int(r1 + (r2 - r1) * f)
+        g = int(g1 + (g2 - g1) * f)
+        b = int(b1 + (b2 - b1) * f)
+        return f'background-color: rgb({r},{g},{b})'
+
+    def color_scale_blocks(val, z):
+        return z_to_color(z)
+
+    # Display matrix with color bar
+    styled_pivot = pivot.style.apply(lambda df: [[color_scale_blocks(v, z_pivot.loc[idx, col]) for col, v in row.items()] for idx, row in df.iterrows()], axis=None).format(precision=3)
     st.dataframe(styled_pivot, use_container_width=True)
-    # Role Mapping Logic based strictly on color grid performance
+
+    # --- Rest of function unchanged (role recommendations, etc) ---
     def get_role_recommendations(matrix_df: pd.DataFrame) -> list:
-        # Defensive check before pivot
         if not isinstance(matrix_df, pd.DataFrame) or matrix_df.empty:
             return []
-        pivot = matrix_df.pivot(index='Phase', columns='Score', values='Impact')
+        pivot = matrix_df.pivot(index='Phase', columns='Score', values='Impact').reindex(index=PHASES, columns=SCORE_CONTEXTS)
         mean_val = pivot.mean().mean()
         max_val = pivot.max().max()
-        # Helper to check if a value is "good" (any shade of green)
         def is_good(val):
             return val > mean_val if pd.notna(val) else False
-        # Helper to check if a value is "best" (dark green)
         def is_best(val):
             return val == max_val if pd.notna(val) else False
-        # Starter criteria: Good in Early/Middle when Up Little, Tight, or Down Little
-        starter_score = 0
-        starter_conditions = [
+        starter_score = sum([
             is_good(pivot.loc['Early', 'Up Little']),
             is_good(pivot.loc['Early', 'Tight']),
             is_good(pivot.loc['Early', 'Down Little']),
             is_good(pivot.loc['Middle', 'Up Little']),
             is_good(pivot.loc['Middle', 'Tight']),
             is_good(pivot.loc['Middle', 'Down Little'])
-        ]
-        starter_score = sum(starter_conditions)
-        # Bridge criteria: Good in Middle/Late when Up Little, Tight, or Down Little
-        bridge_score = 0
-        bridge_conditions = [
+        ])
+        bridge_score = sum([
             is_good(pivot.loc['Middle', 'Up Little']),
             is_good(pivot.loc['Middle', 'Tight']),
             is_good(pivot.loc['Middle', 'Down Little']),
             is_good(pivot.loc['Late', 'Up Little']),
             is_good(pivot.loc['Late', 'Tight']),
             is_good(pivot.loc['Late', 'Down Little'])
-        ]
-        bridge_score = sum(bridge_conditions)
-        # High Leverage criteria: Good in Late innings with Up/Down Little or Tight
-        high_leverage_score = 0
-        high_leverage_conditions = [
+        ])
+        high_leverage_score = sum([
             is_good(pivot.loc['Late', 'Up Little']),
             is_good(pivot.loc['Late', 'Tight']),
             is_good(pivot.loc['Late', 'Down Little']),
             is_good(pivot.loc['Early', 'Tight']),
             is_good(pivot.loc['Middle', 'Tight'])
-        ]
-        high_leverage_score = sum(high_leverage_conditions)
-        # Inning Eater criteria: Good in any phase when Down/Up Lots
-        inning_eater_score = 0
-        inning_eater_conditions = [
+        ])
+        inning_eater_score = sum([
             is_good(pivot.loc['Early', 'Down Lots']),
             is_good(pivot.loc['Early', 'Up Lots']),
             is_good(pivot.loc['Middle', 'Down Lots']),
             is_good(pivot.loc['Middle', 'Up Lots']),
             is_good(pivot.loc['Late', 'Down Lots']),
             is_good(pivot.loc['Late', 'Up Lots'])
-        ]
-        inning_eater_score = sum(inning_eater_conditions)
-        # Long Relief criteria: Good Early when Up Little/Lots or Down Lots
-        long_relief_score = 0
-        long_relief_conditions = [
+        ])
+        long_relief_score = sum([
             is_good(pivot.loc['Early', 'Up Little']),
             is_good(pivot.loc['Early', 'Up Lots']),
             is_good(pivot.loc['Early', 'Down Lots'])
-        ]
-        long_relief_score = sum(long_relief_conditions)
-        # Add bonus points for dark green (best) performances
+        ])
         if is_best(pivot.loc['Early', 'Tight']) or is_best(pivot.loc['Early', 'Up Little']):
             starter_score += 2
         if is_best(pivot.loc['Middle', 'Tight']) or is_best(pivot.loc['Middle', 'Up Little']):
@@ -347,7 +311,6 @@ def analyze_simulation_results(results_df: pd.DataFrame):
             inning_eater_score += 2
         if is_best(pivot.loc['Early', 'Up Little']):
             long_relief_score += 2
-        # Create scored list and sort by score
         roles_scored = [
             ('Starter', starter_score),
             ('Bridge', bridge_score),
@@ -355,14 +318,10 @@ def analyze_simulation_results(results_df: pd.DataFrame):
             ('Inning Eater', inning_eater_score),
             ('Long Relief', long_relief_score)
         ]
-        # Sort by score and return top 3 roles
         roles_sorted = sorted(roles_scored, key=lambda x: x[1], reverse=True)
         return [role for role, score in roles_sorted[:3]]
-    # Key Recommendations
     st.markdown("#### 💡 Recommended Roles")
-    # Get role recommendations based on color grid analysis
     roles = get_role_recommendations(matrix_df)
-    # Display role recommendations
     if roles:
         st.info(f"""
         **Primary Role Recommendations:** 1️⃣ {roles[0]} 2️⃣ {roles[1]} 3️⃣ {roles[2]}
