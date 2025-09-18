@@ -34,20 +34,14 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
         st.error(f"No pitch data available for {selected_pitcher}.")
         return pd.DataFrame()
 
-
     try:
         # Load game states
         gs = pl.read_parquet('game_states_with_roles.parquet')
-        st.info(f"Loaded game_states_with_roles.parquet with {gs.height} rows.")
-
-        # Extract game state components
         valid_states = (
             gs
             .filter(pl.col('game_state').is_not_null())
             .to_pandas()
         )
-        st.info(f"Valid states after filtering nulls: {len(valid_states)} rows.")
-
         if valid_states.empty:
             st.error("No game states available after filtering nulls.")
             return pd.DataFrame()
@@ -80,14 +74,10 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
         valid_states['phase'] = valid_states['inning'].apply(phase_from_inning)
         valid_states['score_ctx'] = valid_states['score_diff'].apply(score_context)
 
-        st.info(f"Unique phases in data: {valid_states['phase'].unique().tolist()}")
-        st.info(f"Unique score contexts in data: {valid_states['score_ctx'].unique().tolist()}")
-
         situations = []
         for phase in PHASES:
             for score in SCORE_CONTEXTS:
                 subset = valid_states[(valid_states['phase'] == phase) & (valid_states['score_ctx'] == score)]
-                st.info(f"Phase: {phase}, Score: {score}, Subset size: {len(subset)}")
                 if subset.empty:
                     continue
                 sample_n = 50
@@ -103,8 +93,6 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
                         'score_ctx': score,
                         'game_state': row['game_state']
                     })
-        st.info(f"Total situations sampled: {len(situations)}")
-
     except Exception as e:
         st.error(f"Error loading game states: {str(e)}")
         return pd.DataFrame()
@@ -120,9 +108,6 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
         pitcher_hand = first_profile.get('pitcher_hand', 'Right')
     except Exception:
         pitcher_hand = 'Right'
-
-    st.info(f"Number of profiles for selected pitcher: {len(profiles)}")
-    st.info(f"First 3 situation dicts: {situations[:3]}")
 
     for i, situation in enumerate(situations):
         try:
@@ -169,12 +154,8 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
                 'Pitcher_Hand': pitcher_hand,
             })
         except Exception as e:
-            st.error(f"Simulation error at situation {i}: {e}")
             continue
         progress_bar.progress((i + 1) / total_sims)
-    st.info(f"Total simulation results: {len(results)}")
-    if not results:
-        st.error("No simulation results generated. Check above for debugging info.")
     return pd.DataFrame(results)
 
 def analyze_simulation_results(results_df: pd.DataFrame):

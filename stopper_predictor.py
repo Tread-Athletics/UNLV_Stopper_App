@@ -114,21 +114,6 @@ def train_pitch_delta_model(df: pl.DataFrame, cache_path: str = "model/pitch_del
 def load_or_train_pitch_delta_model(df: pl.DataFrame, cache_path: str = "model/pitch_delta_model.joblib") -> PitchDeltaModel:
     try:
         mdl = joblib.load(cache_path)
-        try:
-            import streamlit as st
-            st.info(f"Loaded model type: {type(mdl)}; pipeline type: {type(getattr(mdl, 'pipeline', None))}")
-            try:
-                st.info(f"Pipeline steps: {getattr(mdl.pipeline, 'steps', 'N/A')}")
-                st.info(f"Pipeline repr: {repr(mdl.pipeline)}")
-            except Exception as e:
-                st.error(f"Error printing pipeline steps: {e}")
-        except Exception as e:
-            print(f"Loaded model type: {type(mdl)}; pipeline type: {type(getattr(mdl, 'pipeline', None))}")
-            try:
-                print(f"Pipeline steps: {getattr(mdl.pipeline, 'steps', 'N/A')}")
-                print(f"Pipeline repr: {repr(mdl.pipeline)}")
-            except Exception as e2:
-                print(f"Error printing pipeline steps: {e2}")
         return mdl
     except Exception:
         return train_pitch_delta_model(df, cache_path)
