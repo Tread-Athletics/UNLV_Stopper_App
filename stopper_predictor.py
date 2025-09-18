@@ -112,8 +112,18 @@ def train_pitch_delta_model(df: pl.DataFrame, cache_path: str = "model/pitch_del
 
 
 def load_or_train_pitch_delta_model(df: pl.DataFrame, cache_path: str = "model/pitch_delta_model.joblib") -> PitchDeltaModel:
+    import streamlit as st
     try:
         mdl = joblib.load(cache_path)
+        # Debug: print pipeline steps and regressor type
+        try:
+            steps = getattr(mdl.pipeline, 'steps', None)
+            st.info(f"Pipeline steps: {steps}")
+            if steps and len(steps) > 0:
+                reg = steps[-1][1]
+                st.info(f"Regressor type: {type(reg)}")
+        except Exception as e:
+            st.info(f"Error printing pipeline steps: {e}")
         return mdl
     except Exception:
         return train_pitch_delta_model(df, cache_path)
@@ -210,6 +220,7 @@ def simulate_expected_delta(
     - Uses given leverage_index and count; batter_hand picked or mixed by pitcher rates
     Returns expected delta across simulated paths.
     """
+    import streamlit as st
     rng = rng or np.random.default_rng(42)
     # Build the per-pitcher categorical distribution over pitch types
     pt_rows = [(pt, prof["freq"]) for (p, pt), prof in profiles.items() if p == pitcher_name and prof.get("freq", 0) > 0]
@@ -284,7 +295,7 @@ def simulate_expected_delta(
         'inning': inning_arr,
         'half': half_arr,
     })
-
+    st.info(f"First 5 rows of model input X:\n{X.head().to_string()}")
     preds = mdl.pipeline.predict(X)
     per_path = preds.reshape(paths, n_pitches).sum(axis=1)
     return float(per_path.mean())
