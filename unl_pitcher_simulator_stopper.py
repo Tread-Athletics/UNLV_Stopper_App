@@ -1309,7 +1309,7 @@ def main():
             if not selected_pitch_type:
                 selected_pitch_type = None
             if selected_pitch_type:
-                plotly_path = '/Users/evanborberg/Stopper-/execution_plus_cli2_plotly.py'
+                plotly_path = 'execution_plus_cli2_plotly.py'
                 spec = importlib.util.spec_from_file_location("execution_plus_cli2_plotly", plotly_path)
                 ep_plotly = importlib.util.module_from_spec(spec)
                 sys.modules["execution_plus_cli2_plotly"] = ep_plotly
