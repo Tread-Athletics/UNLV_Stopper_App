@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 from dotenv import load_dotenv
+import traceback
 
 # Load environment variables at startup
 # load_dotenv()
@@ -1253,15 +1254,22 @@ def main():
                     
                     # Run simulation automatically
                     with st.spinner("Analyzing situations..."):
-                        mdl = load_or_train_pitch_delta_model(df_all)
-                        results_df = simulate_all_situations(
-                            selected_pitcher=selected_pitcher,
-                            profiles=profiles,
-                            mdl=mdl,
-                            leverage_from_state=leverage_from_state
-                        )
-                        analyze_simulation_results(results_df)
-
+                        try:
+                            mdl = load_or_train_pitch_delta_model(df_all)
+                            results_df = simulate_all_situations(
+                                selected_pitcher=selected_pitcher,
+                                profiles=profiles,
+                                mdl=mdl,
+                                leverage_from_state=leverage_from_state
+                            )
+                            analyze_simulation_results(results_df)
+                        except Exception as e:
+                            spinner_placeholder.empty()
+                            st.error(f"Error processing data: {str(e)}")
+                            st.text(traceback.format_exc())
+                            if 'results_df' in locals():
+                                st.write("results_df head:")
+                                st.dataframe(results_df.head(20))
 
 
             except Exception as e:
