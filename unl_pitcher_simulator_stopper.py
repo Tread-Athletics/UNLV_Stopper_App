@@ -1266,10 +1266,6 @@ def main():
                         except Exception as e:
                             spinner_placeholder.empty()
                             st.error(f"Error processing data: {str(e)}")
-                            st.text(traceback.format_exc())
-                            if 'results_df' in locals():
-                                st.write("results_df head:")
-                                st.dataframe(results_df.head(20))
 
 
             except Exception as e:

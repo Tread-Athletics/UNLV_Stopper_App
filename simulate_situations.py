@@ -262,17 +262,14 @@ def analyze_simulation_results(results_df: pd.DataFrame):
         return
     if 'Phase' not in matrix_df.columns or 'Score' not in matrix_df.columns:
         st.error(f"Missing required columns in situation matrix: {matrix_df.columns.tolist()}")
-        st.dataframe(matrix_df)
         return
     if matrix_df.duplicated(subset=['Phase', 'Score']).any():
         st.error("Duplicate Phase/Score pairs found in situation matrix. Please check the simulation logic.")
-        st.dataframe(matrix_df)
         return
     try:
         pivot = matrix_df.pivot(index='Phase', columns='Score', values='Impact')
     except Exception as e:
         st.error(f"Error creating pivot table: {e}")
-        st.dataframe(matrix_df)
         return
     # Add color styling - clean block style
     def color_scale_blocks(val):
