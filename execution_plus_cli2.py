@@ -469,9 +469,9 @@ def main(argv=None):
         booster.load_model(path)
         return booster
 
-    fb_model_hint = '/Users/evanborberg/Stopper-/models/xgb-fastball-execution-v2-mae-HAAupdate'
-    bb_model_hint = '/Users/evanborberg/Stopper-/models/xgb-breakingball-execution-v2-mae-HAAupdate'
-    os_model_hint = '/Users/evanborberg/Stopper-/models/xgb-offspeed-execution-v2-mae-HAAUpdate'
+    fb_model_hint = str(Path(__file__).parent / "models" / "xgb-fastball-execution-v2-mae-HAAupdate")
+    bb_model_hint = str(Path(__file__).parent / "models" / "xgb-breakingball-execution-v2-mae-HAAupdate")
+    os_model_hint = str(Path(__file__).parent / "models" / "xgb-offspeed-execution-v2-mae-HAAUpdate")
 
     fb_model = load_model(fb_model_hint)
     bb_model = load_model(bb_model_hint)

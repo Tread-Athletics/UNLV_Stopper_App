@@ -207,9 +207,9 @@ def get_pitch_type_figure(
     expanded_buckets = add_rp_buckets(expanded_averages, df_type="TrackMan")
     # --- Model loading ---
     import xgboost
-    fb_model_hint = '/Users/evanborberg/Stopper-/models/xgb-fastball-execution-v2-mae-HAAupdate'
-    bb_model_hint = '/Users/evanborberg/Stopper-/models/xgb-breakingball-execution-v2-mae-HAAupdate'
-    os_model_hint = '/Users/evanborberg/Stopper-/models/xgb-offspeed-execution-v2-mae-HAAUpdate'
+    fb_model_hint = str(Path(__file__).parent / "models" / "xgb-fastball-execution-v2-mae-HAAupdate")
+    bb_model_hint = str(Path(__file__).parent / "models" / "xgb-breakingball-execution-v2-mae-HAAupdate")
+    os_model_hint = str(Path(__file__).parent / "models" / "xgb-offspeed-execution-v2-mae-HAAUpdate")
     def load_model(path):
         booster = xgboost.Booster()
         booster.load_model(path)
