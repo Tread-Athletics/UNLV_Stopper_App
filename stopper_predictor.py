@@ -114,6 +114,11 @@ def train_pitch_delta_model(df: pl.DataFrame, cache_path: str = "model/pitch_del
 def load_or_train_pitch_delta_model(df: pl.DataFrame, cache_path: str = "model/pitch_delta_model.joblib") -> PitchDeltaModel:
     try:
         mdl = joblib.load(cache_path)
+        try:
+            import streamlit as st
+            st.info(f"Loaded model type: {type(mdl)}; pipeline type: {type(getattr(mdl, 'pipeline', None))}")
+        except Exception:
+            print(f"Loaded model type: {type(mdl)}; pipeline type: {type(getattr(mdl, 'pipeline', None))}")
         return mdl
     except Exception:
         return train_pitch_delta_model(df, cache_path)
