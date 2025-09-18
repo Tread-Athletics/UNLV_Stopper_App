@@ -256,6 +256,10 @@ def analyze_simulation_results(results_df: pd.DataFrame):
             except KeyError:
                 continue
     matrix_df = pd.DataFrame(matrix_data)
+    # Defensive check before pivot
+    if not isinstance(matrix_df, pd.DataFrame) or matrix_df.empty:
+        st.error("No situation matrix data available for analysis.")
+        return
     # Create pivot table for clear visualization
     pivot = matrix_df.pivot(index='Phase', columns='Score', values='Impact')
     # Add color styling - clean block style
@@ -274,7 +278,9 @@ def analyze_simulation_results(results_df: pd.DataFrame):
     st.dataframe(styled_pivot, use_container_width=True)
     # Role Mapping Logic based strictly on color grid performance
     def get_role_recommendations(matrix_df: pd.DataFrame) -> list:
-        """Determine roles based on where green/light-green boxes appear in the matrix."""
+        # Defensive check before pivot
+        if not isinstance(matrix_df, pd.DataFrame) or matrix_df.empty:
+            return []
         pivot = matrix_df.pivot(index='Phase', columns='Score', values='Impact')
         mean_val = pivot.mean().mean()
         max_val = pivot.max().max()
@@ -362,9 +368,12 @@ def analyze_simulation_results(results_df: pd.DataFrame):
     # Get role recommendations based on color grid analysis
     roles = get_role_recommendations(matrix_df)
     # Display role recommendations
-    st.info(f"""
-    **Primary Role Recommendations:** 1️⃣ {roles[0]} 2️⃣ {roles[1]} 3️⃣ {roles[2]}
-    
-    Based on standardized performance across all situations
-    """)
+    if roles:
+        st.info(f"""
+        **Primary Role Recommendations:** 1️⃣ {roles[0]} 2️⃣ {roles[1]} 3️⃣ {roles[2]}
+        
+        Based on standardized performance across all situations
+        """)
+    else:
+        st.info("No role recommendations available due to insufficient data.")
     
