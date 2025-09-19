@@ -27,7 +27,17 @@ def standardize_score(score: float, baseline: dict | None = None) -> float:
         return 100.0
     return 100.0 + 10.0 * ((score - mu) / sd)
 
-def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, leverage_from_state: callable):
+def leverage_from_state(inning, half, outs, on1, on2, on3, score_diff):
+    # Example: higher leverage for later innings, close games, runners on base
+    runners = on1 + on2 + on3
+    base_leverage = 1 + 0.1 * (inning - 1)
+    if abs(score_diff) <= 1:
+        base_leverage += 0.5
+    if runners > 0:
+        base_leverage += 0.2 * runners
+    return base_leverage
+
+def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, leverage_from_state: callable = leverage_from_state):
     """Simulate pitcher performance across evenly sampled game contexts."""
 
     # Restrict profiles to the selected pitcher only to avoid cross-contamination
