@@ -4,7 +4,6 @@ import streamlit as st
 import numpy as np
 from typing import Dict, Any
 from stopper_predictor import simulate_expected_delta
-import os
 import sklearn
 import hashlib
 
@@ -154,7 +153,6 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
     
     # Run simulations
     results = []
-    predictions_debug = []
     progress_bar = st.progress(0)
     total_sims = len(situations)
 
@@ -208,8 +206,6 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
                 pitcher_hand=pitcher_hand,
                 rng=seed,
             )
-            if i < 10:
-                predictions_debug.append(exp_delta)
             # Calculate standardized score
             standardized_score = standardize_score(exp_delta)
             # Apply penalty for do-not-pitch pitchers
@@ -232,14 +228,12 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
         except Exception as e:
             continue
         progress_bar.progress((i + 1) / total_sims)
-    st.info(f"First 10 predictions: {np.array(predictions_debug)}")
     return pd.DataFrame(results)
 
 def analyze_simulation_results(results_df: pd.DataFrame):
     import pandas as pd
     import numpy as np
     import streamlit as st
-    import os
     import sklearn
 
     if results_df.empty:
@@ -255,85 +249,64 @@ def analyze_simulation_results(results_df: pd.DataFrame):
         Avg_Workload=('Pitch_Workload', 'mean')
     ).round(4)
 
-    baseline_path = os.path.join(os.path.dirname(__file__), 'team_role_baselines.csv')
-    baselines = pd.read_csv(baseline_path)
-    sit_baselines = baselines[baselines['Category'] == 'Situation']
-    baseline_lookup = {}
-    for _, row in sit_baselines.iterrows():
-        phase, score_ctx = row['Subcategory'].split('_', 1)
-        baseline_lookup[(phase, score_ctx)] = (row['Mean'], row['Std'])
+    matrix_df = phase_analysis.reset_index().rename(columns={'Score_Context': 'Score'})
 
     PHASES = ['Early', 'Middle', 'Late']
     SCORE_CONTEXTS = ['Down Lots', 'Down Little', 'Tight', 'Up Little', 'Up Lots']
-    matrix_data = []
-    for phase in PHASES:
-        for score in SCORE_CONTEXTS:
-            try:
-                data = phase_analysis.loc[(phase, score)]
-                impact = data['Impact']
-                mean, std = baseline_lookup.get((phase, score), (0, 1))
-                z = (impact - mean) / std if std > 0 else 0
-                matrix_data.append({
-                    'Phase': phase,
-                    'Score': score,
-                    'Impact': impact,
-                    'Z': z,
-                    'LI': data['Avg_Leverage'],
-                    'Samples': data['Samples'],
-                    'Workload': data['Avg_Workload']
-                })
-            except KeyError:
-                matrix_data.append({
-                    'Phase': phase,
-                    'Score': score,
-                    'Impact': np.nan,
-                    'Z': 0,
-                    'LI': np.nan,
-                    'Samples': 0,
-                    'Workload': np.nan
-                })
-    matrix_df = pd.DataFrame(matrix_data)
+
     pivot = matrix_df.pivot(index='Phase', columns='Score', values='Impact').reindex(index=PHASES, columns=SCORE_CONTEXTS)
-    z_pivot = matrix_df.pivot(index='Phase', columns='Score', values='Z').reindex(index=PHASES, columns=SCORE_CONTEXTS)
 
-    def z_to_color(z):
-        z = np.clip(z, -2.5, 2.5)
-        if np.isnan(z):
-            return 'background-color: #ffffff'
-        if z < 0:
-            r1, g1, b1 = (220, 53, 69)
-            r2, g2, b2 = (255, 255, 255)
-            f = (z + 2.5) / 2.5
-        else:
-            r1, g1, b1 = (255, 255, 255)
-            r2, g2, b2 = (40, 167, 69)
-            f = z / 2.5
-        r = int(r1 + (r2 - r1) * f)
-        g = int(g1 + (g2 - g1) * f)
-        b = int(b1 + (b2 - b1) * f)
-        return f'background-color: rgb({r},{g},{b})'
+    RED_RGB = (139, 0, 0)
+    GREEN_RGB = (0, 100, 0)
+    WHITE_RGB = (255, 255, 255)
 
-    def color_df(df, z_pivot):
-        color_matrix = pd.DataFrame(index=df.index, columns=df.columns)
-        for r in df.index:
-            for c in df.columns:
-                z = z_pivot.loc[r, c]
-                color_matrix.loc[r, c] = z_to_color(z)
-        return color_matrix
+    def blend_rgb(color_from: tuple[int, int, int], color_to: tuple[int, int, int], weight: float) -> tuple[int, int, int]:
+        weight = max(0.0, min(1.0, weight))
+        return tuple(int(round(cf + (ct - cf) * weight)) for cf, ct in zip(color_from, color_to))
 
-    styled_pivot = pivot.style.apply(color_df, z_pivot=z_pivot, axis=None).format(precision=3)
+    def style_from_rgb(rgb: tuple[int, int, int]) -> str:
+        r, g, b = rgb
+        luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+        text_color = '#111111' if luminance > 0.6 else '#F5F5F5'
+        return f'background-color: rgb({r},{g},{b}); color: {text_color}; font-weight: 700'
+
+    def apply_self_gradient(dataframe: pd.DataFrame) -> pd.DataFrame:
+        values = dataframe.to_numpy(dtype=float)
+        mask = np.isfinite(values)
+        style = pd.DataFrame('background-color: #2b2b2b; color: #bbbbbb', index=dataframe.index, columns=dataframe.columns)
+        if not mask.any():
+            return style
+
+        min_val = np.nanmin(values)
+        max_val = np.nanmax(values)
+        mean_val = np.nanmean(values)
+        span_neg = mean_val - min_val
+        span_pos = max_val - mean_val
+
+        for row_label in dataframe.index:
+            for col_label in dataframe.columns:
+                val = dataframe.loc[row_label, col_label]
+                if pd.isna(val):
+                    continue
+                if span_neg <= 1e-9 and span_pos <= 1e-9:
+                    rgb = WHITE_RGB
+                elif val <= mean_val:
+                    weight = 0.0 if span_neg <= 1e-9 else (mean_val - val) / span_neg
+                    rgb = blend_rgb(WHITE_RGB, RED_RGB, weight)
+                else:
+                    weight = 0.0 if span_pos <= 1e-9 else (val - mean_val) / span_pos
+                    rgb = blend_rgb(WHITE_RGB, GREEN_RGB, weight)
+                style.loc[row_label, col_label] = style_from_rgb(rgb)
+        return style
+
+    styled_pivot = pivot.style.apply(apply_self_gradient, axis=None).format(precision=3)
     st.dataframe(styled_pivot, use_container_width=True)
 
-    workload_pivot = matrix_df.pivot(index='Phase', columns='Score', values='Workload').reindex(index=PHASES, columns=SCORE_CONTEXTS)
-    if not workload_pivot.isna().all().all():
-        st.caption("Avg simulated pitch workload (pitches) by situation")
-        st.dataframe(workload_pivot.round(1), use_container_width=True)
-
     # --- Rest of function unchanged (role recommendations, etc) ---
-    def get_role_recommendations(matrix_df: pd.DataFrame) -> list:
-        if not isinstance(matrix_df, pd.DataFrame) or matrix_df.empty:
+    def get_role_recommendations(pivot_table: pd.DataFrame) -> list:
+        if not isinstance(pivot_table, pd.DataFrame) or pivot_table.empty:
             return []
-        pivot = matrix_df.pivot(index='Phase', columns='Score', values='Impact').reindex(index=PHASES, columns=SCORE_CONTEXTS)
+        pivot = pivot_table.reindex(index=PHASES, columns=SCORE_CONTEXTS)
         mean_val = pivot.mean().mean()
         max_val = pivot.max().max()
         def is_good(val):
@@ -396,7 +369,7 @@ def analyze_simulation_results(results_df: pd.DataFrame):
         roles_sorted = sorted(roles_scored, key=lambda x: x[1], reverse=True)
         return [role for role, score in roles_sorted[:3]]
     st.markdown("#### 💡 Recommended Roles")
-    roles = get_role_recommendations(matrix_df)
+    roles = get_role_recommendations(pivot)
     if roles:
         st.info(f"""
         **Primary Role Recommendations:** 1️⃣ {roles[0]} 2️⃣ {roles[1]} 3️⃣ {roles[2]}
