@@ -7,6 +7,22 @@ from stopper_predictor import simulate_expected_delta
 import os
 import sklearn
 
+_LEVERAGE_TABLE = None
+
+def _load_leverage_table() -> pl.DataFrame:
+    global _LEVERAGE_TABLE
+    if _LEVERAGE_TABLE is not None:
+        return _LEVERAGE_TABLE
+    path = 'game_states_with_roles.parquet'
+    try:
+        tbl = pl.read_parquet(path)
+        if 'game_state' in tbl.columns and 'leverage_index' in tbl.columns:
+            _LEVERAGE_TABLE = tbl.select(['game_state', 'leverage_index']).unique()
+            return _LEVERAGE_TABLE
+    except Exception as e:
+        st.error(f"Could not load leverage table: {e}")
+    return None
+
 # List of pitchers that should not be recommended
 DO_NOT_PITCH = ['Barna, Cal', 'Rogers, Dylan']
 
@@ -28,14 +44,19 @@ def standardize_score(score: float, baseline: dict | None = None) -> float:
     return 100.0 + 10.0 * ((score - mu) / sd)
 
 def leverage_from_state(inning, half, outs, on1, on2, on3, score_diff):
-    # Example: higher leverage for later innings, close games, runners on base
-    runners = on1 + on2 + on3
-    base_leverage = 1 + 0.1 * (inning - 1)
-    if abs(score_diff) <= 1:
-        base_leverage += 0.5
-    if runners > 0:
-        base_leverage += 0.2 * runners
-    return base_leverage
+    tbl = _load_leverage_table()
+    if tbl is None:
+        return 1.0
+    half_token = "Top" if str(half).lower().startswith("t") else "Bot"
+    runner_state = f"{int(on1)}{int(on2)}{int(on3)}"
+    gs = f"{round(float(inning),1)}_{half_token}_{int(outs)}_{runner_state}_{round(float(score_diff),1)}"
+    try:
+        val = tbl.filter(pl.col("game_state") == gs).select("leverage_index").to_series()
+        if len(val) > 0 and val[0] is not None:
+            return float(val[0])
+    except Exception:
+        pass
+    return 1.0
 
 def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, leverage_from_state: callable = leverage_from_state):
     """Simulate pitcher performance across evenly sampled game contexts."""
