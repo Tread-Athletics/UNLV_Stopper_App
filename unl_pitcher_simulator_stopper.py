@@ -885,19 +885,19 @@ def main():
             generate_info = st.button("Generate Info", key="generate_info_btn")
             if selected_pitcher and generate_info:
                 st.session_state["show_individual_info"] = True
-                st.experimental_rerun()
+                st.rerun()
         else:
             # Add a back button to reset
             if st.button("Back", key="back_to_dropdown"):
                 st.session_state["show_individual_info"] = False
-                st.experimental_rerun()
+                st.rerun()
             spinner_placeholder = st.empty()
             spinner_placeholder.markdown('''
                 <style>
                 .ep-spinner-overlay {
                     position: fixed;
                     top: 0; left: 0; width: 100vw; height: 100vh;
-                    background: rgba(0,0,0,0.82); z-index: 9999;
+                    background: rgba(0,0,0,1); z-index: 9999;
                     display: flex; align-items: center; justify-content: center;
                 }
                 .ep-spinner {
