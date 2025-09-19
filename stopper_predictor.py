@@ -275,12 +275,13 @@ def simulate_expected_delta(
         X = X.to_pandas()
     elif not isinstance(X, pd.DataFrame):
         raise ValueError("Input to model must be a pandas DataFrame.")
-    # Print the first 10 rows and dtypes
+    # Print 5 random rows and dtypes
+    sample_X = X.sample(n=min(5, len(X)), random_state=42) if len(X) > 5 else X
     if use_st:
-        st.write("Model input sample:", X.head(10))
+        st.write("Model input sample (random 5):", sample_X)
         st.write("Model input dtypes:", X.dtypes)
     else:
-        print("Model input sample:\n", X.head(10))
+        print("Model input sample (random 5):\n", sample_X)
         print("Model input dtypes:\n", X.dtypes)
     preds = mdl.pipeline.predict(X)
     per_path = preds.reshape(paths, n_pitches).sum(axis=1)
