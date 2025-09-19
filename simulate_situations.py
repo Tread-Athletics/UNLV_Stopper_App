@@ -5,6 +5,8 @@ import numpy as np
 from typing import Dict, Any
 from stopper_predictor import simulate_expected_delta
 import os
+import sklearn
+st.info(f'scikit-learn version: {sklearn.__version__}')
 
 # List of pitchers that should not be recommended
 DO_NOT_PITCH = ['Barna, Cal', 'Rogers, Dylan']
