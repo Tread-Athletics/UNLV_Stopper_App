@@ -1066,7 +1066,7 @@ def main():
                     </style>
                 """, unsafe_allow_html=True)
 
-                # Create equal-width columns
+                # Create equal-width columns for layout only (not navigation)
                 cols = st.columns([1, 1])
                 
                 # Left column - Table (45% viewport width)
@@ -1162,7 +1162,6 @@ def main():
                 )
                 
                 # Update layout for static, fixed-ratio plot
-# Fixed plot layout
                 fig.update_layout(
                     width=550,              # Adjusted width for 50% column
                     height=600,             # Match table height
@@ -1195,7 +1194,6 @@ def main():
                         zeroline=True
                     ),
                 )
-
                 
                 # Disable zoom and pan
                 fig.update_xaxes(fixedrange=True)
@@ -1209,49 +1207,11 @@ def main():
                         config={'displayModeBar': False}
                     )
 
-
-                # # First, run Execution+ analysis
-                # cmin, cmax, bins = 0.0, 200.0, 20
-                # execution_plus_results = None
-                # with st.spinner("Building Execution+ predictions and heat map…"):
-                #     try:
-                #         # Ensure xgboost available for model inference (auto-install if needed)
-                #         if not _ensure_xgboost():
-                #             raise ModuleNotFoundError("xgboost is not installed and auto-install failed")
-                #         raw_tm = _PRACTICE_BY_PITCHER.get(selected_pitcher)
-                #         if raw_tm is None or raw_tm.empty:
-                #             raw_tm = _load_pitcher_tm_raw(selected_pitcher)
-                #         if raw_tm.empty:
-                #             st.warning("No TrackMan rows found for this pitcher since 2025-01-01.")
-                #         else:
-                #             # Only keep the CLI call for Execution+
-                #             out_dir = Path(__file__).parent / "outputs" / "streamlit_ep_plots"
-                #             out_dir.mkdir(parents=True, exist_ok=True)
-                #             cli_args = [
-                #                 "--pitcher", selected_pitcher,
-                #                 "--query-since", "2025-01-01",
-                #                 "--save-dir", str(out_dir.resolve()),
-                #                 "--models-root", ".",
-                #                 "--bins", "20",
-                #                 "--cmin", "0",
-                #                 "--cmax", "200"
-                #             ]
-                #             subprocess.run([
-                #                 sys.executable, "-m", "execution_plus_cli2", *cli_args
-                #             ], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                            
-                #             # Display the generated plot
-                #             combined_img = out_dir / f"execution_plus_{selected_pitcher.replace(', ', '_')}_platoon.png"
-                #             st.image(str(combined_img), use_container_width=True)
-                #             spinner_placeholder.empty()  # Remove overlay as soon as PNG is shown
-                #     except Exception as e:
-                #         st.error(f"Error generating Execution+ plots: {str(e)}")
-
+                # Situation Analysis (no new tabs/columns for navigation)
                 with cols[1]:  # Right column - continue after plot
                     st.subheader("Situation Analysis")
                     if selected_pitcher in DO_NOT_PITCH:
                         st.error(f"⚠️ WARNING: {selected_pitcher} is on the Do Not Pitch list. Scores will be penalized by -15 points.")
-                    
                     # Run simulation automatically
                     with st.spinner("Analyzing situations..."):
                         try:
@@ -1266,8 +1226,6 @@ def main():
                         except Exception as e:
                             spinner_placeholder.empty()
                             st.error(f"Error processing data: {str(e)}")
-
-
             except Exception as e:
                 spinner_placeholder.empty()
                 st.error(f"Error processing data: {str(e)}")
