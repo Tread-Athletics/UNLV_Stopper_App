@@ -863,7 +863,7 @@ def main():
         wp, pa_wpa_unlv, leaderboard_unlv, df_all, df_unlv = load_full_pipeline()
 
     # Create tabs
-    tab_names = ["Individual Breakdown", "Team Breakdown", "Practice Planning"]  # Added Practice Planning tab
+    tab_names = ["Individual Breakdown", "Practice Planning"]
     tabs = st.tabs(tab_names)
     
     # Clear any sidebar content
@@ -872,16 +872,25 @@ def main():
     # --- Individual Breakdown ---
     with tabs[0]:
         st.subheader("Individual Pitcher Analysis")
-        
-        # Left-aligned dropdown
-        selected_pitcher = st.selectbox(
-            "Select Pitcher",
-            options=UNLV_PITCHERS,
-            index=0,
-            key="individual_pitcher"
-        )
-        generate_info = st.button("Generate Info", key="generate_info_btn")
-        if selected_pitcher and generate_info:
+        # Use session state to track if info is generated
+        if "show_individual_info" not in st.session_state:
+            st.session_state["show_individual_info"] = False
+        if not st.session_state["show_individual_info"]:
+            selected_pitcher = st.selectbox(
+                "Select Pitcher",
+                options=UNLV_PITCHERS,
+                index=0,
+                key="individual_pitcher"
+            )
+            generate_info = st.button("Generate Info", key="generate_info_btn")
+            if selected_pitcher and generate_info:
+                st.session_state["show_individual_info"] = True
+                st.experimental_rerun()
+        else:
+            # Add a back button to reset
+            if st.button("Back", key="back_to_dropdown"):
+                st.session_state["show_individual_info"] = False
+                st.experimental_rerun()
             spinner_placeholder = st.empty()
             spinner_placeholder.markdown('''
                 <style>
@@ -913,10 +922,9 @@ def main():
                     </div>
                 </div>
             ''', unsafe_allow_html=True)
-            # --- Heavy computation and data loading here ---
             try:
+                selected_pitcher = st.session_state.get("individual_pitcher", UNLV_PITCHERS[0])
                 profiles = get_pitcher_profiles(selected_pitcher)
-                
                 if not profiles:
                     spinner_placeholder.empty()
                     st.warning("No pitch data found for this pitcher.")
@@ -1230,23 +1238,8 @@ def main():
                 spinner_placeholder.empty()
                 st.error(f"Error processing data: {str(e)}")
 
-    # --- Team Breakdown ---
-    # with tabs[1]:
-    #     st.subheader("Team Scenario Analysis")
-    #     # Center the team analysis button
-    #     _tb1, _tb2, _tb3 = st.columns([1, 3, 1])
-    #     with _tb2:
-    #         team_btn = st.button("Run Team Analysis", key="team_analysis")
-        
-    #     if team_btn:
-    #         # Get the model
-    #         mdl = load_or_train_pitch_delta_model(df_all)
-    #         
-    #         # Run team analysis
-    #         analyze_team_scenarios(mdl, leverage_from_state)
-
     # --- Practice Planning ---
-    with tabs[2]:
+    with tabs[1]:
         main_col, sidebar_col = st.columns([2, 1], gap="large")
         with main_col:
             st.subheader("Bullpen Planner")
