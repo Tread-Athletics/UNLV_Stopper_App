@@ -1,3 +1,5 @@
+import base64
+import io
 import pandas as pd
 import polars as pl
 import streamlit as st
@@ -54,6 +56,18 @@ SCORE_COUNT_TENDENCIES = {
     'Up Lots': (0, 0),
 }
 
+PRECOMPUTED_BASE64 = """$(cat precomputed_base64.txt)"""
+_PRECOMPUTED_CACHE: pd.DataFrame | None = None
+
+
+def _get_precomputed_df() -> pd.DataFrame:
+    """Return the dataframe of precomputed situation metrics."""
+    global _PRECOMPUTED_CACHE
+    if _PRECOMPUTED_CACHE is None:
+        decoded = base64.b64decode(PRECOMPUTED_BASE64)
+        _PRECOMPUTED_CACHE = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+    return _PRECOMPUTED_CACHE.copy()
+
 
 def standardize_score(score: float, baseline: dict | None = None) -> float:
     """Standardize a score to a 100-based scale with SD=10."""
@@ -80,161 +94,59 @@ def leverage_from_state(inning, half, outs, on1, on2, on3, score_diff):
     return 1.0
 
 def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, leverage_from_state: callable = leverage_from_state):
-    """Simulate pitcher performance across evenly sampled game contexts."""
-
-    # Restrict profiles to the selected pitcher only to avoid cross-contamination
-    profiles = {k: v for k, v in profiles.items() if k[0] == selected_pitcher}
-    if not profiles:
-        st.error(f"No pitch data available for {selected_pitcher}.")
+    """Return hardcoded situation metrics for the selected pitcher."""
+    # Comment out any simulation logic
+    # Instead, use the hardcoded table below
+    import pandas as pd
+    hardcoded_data = [
+        # Pitcher, Phase, Score_Context, MeanImpact, StdImpact, MeanStopper, StdStopper, Samples
+        ["Albright, Cody", "Early", "Down Lots", 0.0640052, 0.24080527, 116.40052, 24.080527, 25],
+        ["Albright, Cody", "Early", "Tight", 0.06249557, 0.40193184, 116.24956, 40.193184, 25],
+        ["Albright, Cody", "Middle", "Tight", 0.03129765, 0.24043233, 113.12977, 24.043233, 25],
+        ["Albright, Cody", "Middle", "Down Lots", 0.01246947, 0.10690855, 111.24695, 10.690855, 25],
+        ["Albright, Cody", "Late", "Up Little", -0.01060847, 0.07289174, 108.93915, 7.289174, 25],
+        ["Albright, Cody", "Early", "Up Lots", -0.01854034, 0.06174234, 108.14597, 6.174234, 25],
+        ["Albright, Cody", "Middle", "Up Little", -0.02186254, 0.19882148, 107.81375, 19.882148, 25],
+        ["Albright, Cody", "Late", "Up Lots", -0.02508872, 0.05803313, 107.49113, 5.803313, 25],
+        ["Albright, Cody", "Middle", "Up Lots", -0.02556165, 0.03016765, 107.44383, 3.016765, 25],
+        ["Albright, Cody", "Early", "Down Little", -0.02671709, 0.25879542, 107.32829, 25.879542, 25],
+        ["Albright, Cody", "Late", "Down Lots", -0.03259994, 0.05778683, 106.74001, 5.778683, 25],
+        ["Albright, Cody", "Middle", "Down Little", -0.0530737, 0.29881899, 104.69263, 29.881899, 25],
+        ["Albright, Cody", "Early", "Up Little", -0.05602953, 0.21465283, 104.39705, 21.465283, 25],
+        ["Albright, Cody", "Late", "Tight", -0.07316393, 0.14939128, 102.68361, 14.939128, 25],
+        ["Albright, Cody", "Late", "Down Little", -0.1272504, 0.16472398, 97.27496, 16.472398, 25],
+        ["Barna, Cal", "Middle", "Tight", -0.009834482, 0.21404578, 94.01655, 21.404578, 25],
+        ["Barna, Cal", "Early", "Tight", -0.01267873, 0.42708624, 93.73213, 42.708624, 25],
+        ["Barna, Cal", "Early", "Down Lots", -0.02215836, 0.22144631, 92.78416, 22.144631, 25],
+        ["Barna, Cal", "Late", "Up Little", -0.0415542, 0.06341703, 90.84458, 6.341703, 25],
+        ["Barna, Cal", "Late", "Up Lots", -0.06112477, 0.04716243, 88.88752, 4.716243, 25],
+        ["Barna, Cal", "Middle", "Down Lots", -0.06373863, 0.09704728, 88.62614, 9.704728, 25],
+        ["Barna, Cal", "Middle", "Up Little", -0.06528345, 0.18250925, 88.47165, 18.250925, 25],
+        ["Barna, Cal", "Early", "Up Lots", -0.07204081, 0.05661045, 87.79592, 5.661045, 25],
+        ["Barna, Cal", "Middle", "Up Lots", -0.07289111, 0.02716787, 87.71089, 2.716787, 25],
+        ["Barna, Cal", "Early", "Down Little", -0.08452919, 0.23707583, 86.54708, 23.707583, 25],
+        ["Barna, Cal", "Late", "Down Lots", -0.08473282, 0.05145415, 86.52672, 5.145415, 25],
+        ["Barna, Cal", "Middle", "Down Little", -0.09229935, 0.26968317, 85.77006, 26.968317, 25],
+        ["Barna, Cal", "Late", "Tight", -0.1046097, 0.13633001, 84.53903, 13.633001, 25],
+        ["Barna, Cal", "Early", "Up Little", -0.1118917, 0.18787657, 83.81083, 18.787657, 25],
+        ["Barna, Cal", "Late", "Down Little", -0.1566953, 0.14373849, 79.33047, 14.373849, 25],
+        # ... (add all other rows from your provided table here) ...
+    ]
+    columns = ["Pitcher", "Phase", "Score_Context", "MeanImpact", "StdImpact", "MeanStopper", "StdStopper", "Samples"]
+    df = pd.DataFrame(hardcoded_data, columns=columns)
+    filtered = df[df['Pitcher'] == selected_pitcher].copy()
+    if filtered.empty:
+        st.warning(f"No hardcoded situations for {selected_pitcher}.")
         return pd.DataFrame()
-
-    try:
-        # Load game states
-        gs = pl.read_parquet('game_states_with_roles.parquet')
-        valid_states = (
-            gs
-            .filter(pl.col('game_state').is_not_null())
-            .to_pandas()
-        )
-        if valid_states.empty:
-            st.error("No game states available after filtering nulls.")
-            return pd.DataFrame()
-
-        parts = valid_states['game_state'].str.split('_')
-        valid_states['inning'] = parts.str[0].astype(float).astype(int)
-        valid_states['half'] = parts.str[1]
-        valid_states['outs'] = parts.str[2].astype(float).astype(int)
-        valid_states['runners'] = parts.str[3]
-        valid_states['score_diff'] = parts.str[4].astype(float).astype(int)
-
-        def phase_from_inning(inning: int) -> str:
-            if inning <= 3:
-                return 'Early'
-            elif inning <= 6:
-                return 'Middle'
-            return 'Late'
-
-        def score_context(diff: int) -> str:
-            if diff <= -4:
-                return 'Down Lots'
-            if diff <= -1:
-                return 'Down Little'
-            if diff == 0:
-                return 'Tight'
-            if diff <= 3:
-                return 'Up Little'
-            return 'Up Lots'
-
-        valid_states['phase'] = valid_states['inning'].apply(phase_from_inning)
-        valid_states['score_ctx'] = valid_states['score_diff'].apply(score_context)
-
-        situations = []
-        for phase in PHASES:
-            for score in SCORE_CONTEXTS:
-                subset = valid_states[(valid_states['phase'] == phase) & (valid_states['score_ctx'] == score)]
-                if subset.empty:
-                    continue
-                sample_n = 25
-                sampled = subset.sample(n=sample_n, replace=len(subset) < sample_n, random_state=42)
-                for _, row in sampled.iterrows():
-                    situations.append({
-                        'inning': float(row['inning']),
-                        'half': row['half'],
-                        'outs': int(row['outs']),
-                        'runners': row['runners'],
-                        'score_diff': float(row['score_diff']),
-                        'phase': phase,
-                        'score_ctx': score,
-                        'game_state': row['game_state']
-                    })
-    except Exception as e:
-        st.error(f"Error loading game states: {str(e)}")
-        return pd.DataFrame()
-    
-    # Run simulations
-    results = []
-    progress_bar = st.progress(0)
-    total_sims = len(situations)
-
-    # Determine pitcher hand if available
-    try:
-        first_profile = next(iter(profiles.values()))
-        pitcher_hand = first_profile.get('pitcher_hand', 'Right')
-    except Exception:
-        pitcher_hand = 'Right'
-
-    for i, situation in enumerate(situations):
-        try:
-            # Calculate leverage index for the situation
-            leverage = leverage_from_state(
-                inning=situation['inning'],
-                half=situation['half'],
-                outs=situation['outs'],
-                on1=int(situation['runners'][0]),
-                on2=int(situation['runners'][1]),
-                on3=int(situation['runners'][2]),
-                score_diff=situation['score_diff']
-            )
-
-            phase = situation['phase']
-            score_ctx = situation['score_ctx']
-            phase_mult = PHASE_WORKLOAD_MULTIPLIER.get(phase, 1.0)
-            score_mult = SCORE_WORKLOAD_MULTIPLIER.get(score_ctx, 1.0)
-            base_workload = BASE_PITCH_COUNT * phase_mult * score_mult
-            seed_material = f"{selected_pitcher}|{situation['game_state']}|{i}"
-            seed = int(hashlib.sha256(seed_material.encode("utf-8")).hexdigest()[:16], 16)
-            workload_jitter = (seed % 3) - 1  # -1, 0, or 1 pitches of noise
-            n_pitches = int(round(base_workload)) + workload_jitter
-            n_pitches = max(8, min(28, n_pitches))
-
-            balls, strikes = SCORE_COUNT_TENDENCIES.get(score_ctx, (1, 1))
-            if phase == 'Late':
-                strikes = min(strikes + 1, 2)
-            exp_delta = simulate_expected_delta(
-                mdl=mdl,
-                profiles={k: v for k, v in profiles.items() if k[0] == selected_pitcher},
-                df_all=None,  # Not needed for pure stuff-based simulation
-                pitcher_name=selected_pitcher,
-                n_pitches=n_pitches,
-                batter_hand='All',  # Test against both L/R
-                half=situation['half'],
-                inning=float(situation['inning']),
-                leverage_index=float(leverage),
-                balls=balls,
-                strikes=strikes,
-                paths=500,  # 500 Monte Carlo paths
-                pitcher_hand=pitcher_hand,
-                rng=seed,
-            )
-            # Calculate standardized score
-            standardized_score = standardize_score(exp_delta)
-            # Apply penalty for do-not-pitch pitchers
-            if selected_pitcher in DO_NOT_PITCH:
-                standardized_score -= 15  # Subtract 15 points from their scores
-            results.append({
-                'Pitcher': selected_pitcher,
-                'Game_State': situation['game_state'],
-                'Situation': f"{situation['phase']} {situation['score_ctx']}",
-                'Phase': situation['phase'],
-                'Score_Context': situation['score_ctx'],
-                'Leverage': leverage,
-                'Expected_Impact': exp_delta,
-                'Stopper+': standardized_score,
-                'Pitcher_Hand': pitcher_hand,
-                'Pitch_Workload': n_pitches,
-                'Count_Balls': balls,
-                'Count_Strikes': strikes,
-            })
-        except Exception as e:
-            continue
-        progress_bar.progress((i + 1) / total_sims)
-    return pd.DataFrame(results)
+    filtered['Phase'] = pd.Categorical(filtered['Phase'], categories=PHASES, ordered=True)
+    filtered['Score_Context'] = pd.Categorical(filtered['Score_Context'], categories=SCORE_CONTEXTS, ordered=True)
+    filtered = filtered.sort_values(['Phase', 'Score_Context']).reset_index(drop=True)
+    return filtered
 
 def analyze_simulation_results(results_df: pd.DataFrame):
     import pandas as pd
     import numpy as np
     import streamlit as st
-    import sklearn
 
     if results_df.empty:
         st.error("No results to analyze")
@@ -242,11 +154,10 @@ def analyze_simulation_results(results_df: pd.DataFrame):
 
     pitcher_name = results_df['Pitcher'].iloc[0] if not results_df.empty else "Unknown"
 
+    # Use MeanStopper for coloring and display
     phase_analysis = results_df.groupby(['Phase', 'Score_Context']).agg(
-        Impact=('Expected_Impact', 'mean'),
-        Samples=('Expected_Impact', 'count'),
-        Avg_Leverage=('Leverage', 'mean'),
-        Avg_Workload=('Pitch_Workload', 'mean')
+        MeanStopper=('MeanStopper', 'mean'),
+        Samples=('MeanStopper', 'count')
     ).round(4)
 
     matrix_df = phase_analysis.reset_index().rename(columns={'Score_Context': 'Score'})
@@ -254,7 +165,7 @@ def analyze_simulation_results(results_df: pd.DataFrame):
     PHASES = ['Early', 'Middle', 'Late']
     SCORE_CONTEXTS = ['Down Lots', 'Down Little', 'Tight', 'Up Little', 'Up Lots']
 
-    pivot = matrix_df.pivot(index='Phase', columns='Score', values='Impact').reindex(index=PHASES, columns=SCORE_CONTEXTS)
+    pivot = matrix_df.pivot(index='Phase', columns='Score', values='MeanStopper').reindex(index=PHASES, columns=SCORE_CONTEXTS)
 
     RED_RGB = (139, 0, 0)
     GREEN_RGB = (0, 100, 0)
@@ -276,13 +187,11 @@ def analyze_simulation_results(results_df: pd.DataFrame):
         style = pd.DataFrame('background-color: #2b2b2b; color: #bbbbbb', index=dataframe.index, columns=dataframe.columns)
         if not mask.any():
             return style
-
         min_val = np.nanmin(values)
         max_val = np.nanmax(values)
         mean_val = np.nanmean(values)
         span_neg = mean_val - min_val
         span_pos = max_val - mean_val
-
         for row_label in dataframe.index:
             for col_label in dataframe.columns:
                 val = dataframe.loc[row_label, col_label]
@@ -299,8 +208,12 @@ def analyze_simulation_results(results_df: pd.DataFrame):
                 style.loc[row_label, col_label] = style_from_rgb(rgb)
         return style
 
-    styled_pivot = pivot.style.apply(apply_self_gradient, axis=None).format(precision=3)
+    styled_pivot = pivot.style.apply(apply_self_gradient, axis=None).format(precision=2)
     st.dataframe(styled_pivot, use_container_width=True)
+
+    # Optionally, show the raw numbers below
+    st.markdown("#### Raw MeanStopper Table")
+    st.dataframe(pivot, use_container_width=True)
 
     # --- Rest of function unchanged (role recommendations, etc) ---
     def get_role_recommendations(pivot_table: pd.DataFrame) -> list:
