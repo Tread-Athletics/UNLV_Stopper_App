@@ -6,7 +6,6 @@ from typing import Dict, Any
 from stopper_predictor import simulate_expected_delta
 import os
 import sklearn
-st.info(f'scikit-learn version: {sklearn.__version__}')
 
 # List of pitchers that should not be recommended
 DO_NOT_PITCH = ['Barna, Cal', 'Rogers, Dylan']
@@ -38,7 +37,6 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
         return pd.DataFrame()
 
     try:
-        st.info(f"Model type: {type(mdl)}")
         # Load game states
         gs = pl.read_parquet('game_states_with_roles.parquet')
         valid_states = (
@@ -167,11 +165,12 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
     return pd.DataFrame(results)
 
 def analyze_simulation_results(results_df: pd.DataFrame):
-    """Provide condensed, categorized pitching recommendations."""
     import pandas as pd
     import numpy as np
     import streamlit as st
     import os
+    import sklearn
+    st.info(f'scikit-learn version: {sklearn.__version__}')
 
     if results_df.empty:
         st.error("No results to analyze")
@@ -179,25 +178,20 @@ def analyze_simulation_results(results_df: pd.DataFrame):
 
     pitcher_name = results_df['Pitcher'].iloc[0] if not results_df.empty else "Unknown"
 
-    # Calculate performance by game phase and score context
     phase_analysis = results_df.groupby(['Phase', 'Score_Context']).agg(
         Impact=('Expected_Impact', 'mean'),
         Samples=('Expected_Impact', 'count'),
         Avg_Leverage=('Leverage', 'mean')
     ).round(4)
 
-    # --- Load baselines ---
     baseline_path = os.path.join(os.path.dirname(__file__), 'team_role_baselines.csv')
     baselines = pd.read_csv(baseline_path)
-    # Filter to Situation rows
     sit_baselines = baselines[baselines['Category'] == 'Situation']
-    # Build lookup: (Phase, Score_Context) -> (mean, std)
     baseline_lookup = {}
     for _, row in sit_baselines.iterrows():
         phase, score_ctx = row['Subcategory'].split('_', 1)
         baseline_lookup[(phase, score_ctx)] = (row['Mean'], row['Std'])
 
-    # --- Build matrix in requested order ---
     PHASES = ['Early', 'Middle', 'Late']
     SCORE_CONTEXTS = ['Down Lots', 'Down Little', 'Tight', 'Up Little', 'Up Lots']
     matrix_data = []
@@ -206,7 +200,6 @@ def analyze_simulation_results(results_df: pd.DataFrame):
             try:
                 data = phase_analysis.loc[(phase, score)]
                 impact = data['Impact']
-                # Get baseline mean/std
                 mean, std = baseline_lookup.get((phase, score), (0, 1))
                 z = (impact - mean) / std if std > 0 else 0
                 matrix_data.append({
@@ -227,34 +220,26 @@ def analyze_simulation_results(results_df: pd.DataFrame):
                     'Samples': 0
                 })
     matrix_df = pd.DataFrame(matrix_data)
-    # Pivot for display
     pivot = matrix_df.pivot(index='Phase', columns='Score', values='Impact').reindex(index=PHASES, columns=SCORE_CONTEXTS)
     z_pivot = matrix_df.pivot(index='Phase', columns='Score', values='Z').reindex(index=PHASES, columns=SCORE_CONTEXTS)
 
-    # --- Color function: red-white-green by z-score ---
     def z_to_color(z):
-        # Clamp z to [-2.5, 2.5] for color scaling
         z = np.clip(z, -2.5, 2.5)
-        # Red (low) to white (mean) to green (high)
         if np.isnan(z):
-            return 'background-color: #ffffff'  # white for missing
-        # Interpolate: z=-2.5 (red #dc3545), z=0 (white #ffffff), z=2.5 (green #28a745)
+            return 'background-color: #ffffff'
         if z < 0:
-            # Red to white
-            r1, g1, b1 = (220, 53, 69)  # red
-            r2, g2, b2 = (255, 255, 255)  # white
-            f = (z + 2.5) / 2.5  # 0 at -2.5, 1 at 0
+            r1, g1, b1 = (220, 53, 69)
+            r2, g2, b2 = (255, 255, 255)
+            f = (z + 2.5) / 2.5
         else:
-            # White to green
-            r1, g1, b1 = (255, 255, 255)  # white
-            r2, g2, b2 = (40, 167, 69)  # green
-            f = z / 2.5  # 0 at 0, 1 at 2.5
+            r1, g1, b1 = (255, 255, 255)
+            r2, g2, b2 = (40, 167, 69)
+            f = z / 2.5
         r = int(r1 + (r2 - r1) * f)
         g = int(g1 + (g2 - g1) * f)
         b = int(b1 + (b2 - b1) * f)
         return f'background-color: rgb({r},{g},{b})'
 
-    # Build a DataFrame of color codes matching the shape of pivot
     def color_df(df, z_pivot):
         color_matrix = pd.DataFrame(index=df.index, columns=df.columns)
         for r in df.index:
