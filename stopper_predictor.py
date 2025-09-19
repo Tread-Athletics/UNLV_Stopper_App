@@ -204,6 +204,8 @@ def simulate_expected_delta(
     rng: 'np.random.Generator' = None,
     pitcher_hand: str = "Right"
 ) -> float:
+    import pandas as pd
+    import polars as pl
     rng = rng or np.random.default_rng(42)
     pt_rows = [(pt, prof["freq"]) for (p, pt), prof in profiles.items() if p == pitcher_name and prof.get("freq", 0) > 0]
     if not pt_rows:
@@ -263,6 +265,11 @@ def simulate_expected_delta(
         'inning': inning_arr,
         'half': half_arr,
     })
+    # Ensure X is a pandas DataFrame
+    if isinstance(X, pl.DataFrame):
+        X = X.to_pandas()
+    elif not isinstance(X, pd.DataFrame):
+        raise ValueError("Input to model must be a pandas DataFrame.")
     preds = mdl.pipeline.predict(X)
     per_path = preds.reshape(paths, n_pitches).sum(axis=1)
     return float(per_path.mean())
