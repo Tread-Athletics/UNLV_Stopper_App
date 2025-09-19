@@ -112,18 +112,8 @@ def train_pitch_delta_model(df: pl.DataFrame, cache_path: str = "model/pitch_del
 
 
 def load_or_train_pitch_delta_model(df: pl.DataFrame, cache_path: str = "model/pitch_delta_model.joblib") -> PitchDeltaModel:
-    import streamlit as st
     try:
         mdl = joblib.load(cache_path)
-        # Debug: print pipeline steps and regressor type
-        try:
-            steps = getattr(mdl.pipeline, 'steps', None)
-            st.info(f"Pipeline steps: {steps}")
-            if steps and len(steps) > 0:
-                reg = steps[-1][1]
-                st.info(f"Regressor type: {type(reg)}")
-        except Exception as e:
-            st.info(f"Error printing pipeline steps: {e}")
         return mdl
     except Exception:
         return train_pitch_delta_model(df, cache_path)
@@ -199,9 +189,9 @@ def _sample_normal(mu: float, sd: float, rng: np.random.Generator, default: floa
 
 
 def simulate_expected_delta(
-    mdl: PitchDeltaModel,
-    profiles: Dict[Tuple[str, str], Dict[str, Any]],
-    df_all: pl.DataFrame,
+    mdl: 'PitchDeltaModel',
+    profiles: Dict[tuple, dict],
+    df_all: 'pl.DataFrame',
     pitcher_name: str,
     n_pitches: int = 20,
     batter_hand: str = "All",
@@ -211,18 +201,10 @@ def simulate_expected_delta(
     balls: int = 0,
     strikes: int = 0,
     paths: int = 200,
-    rng: Optional[np.random.Generator] = None,
-    pitcher_hand: str = "Right"  # Add pitcher_hand parameter with default
+    rng: 'np.random.Generator' = None,
+    pitcher_hand: str = "Right"
 ) -> float:
-    """Monte Carlo expected sum of model-predicted per-pitch delta_field_win_exp over an outing.
-    - Samples pitch_type by that pitcher's historical mix (with replacement; small-sample friendly)
-    - Samples px, pz, speed, spin, ax, az from per-type Normal(mean,std) with fallback stds
-    - Uses given leverage_index and count; batter_hand picked or mixed by pitcher rates
-    Returns expected delta across simulated paths.
-    """
-    import streamlit as st
     rng = rng or np.random.default_rng(42)
-    # Build the per-pitcher categorical distribution over pitch types
     pt_rows = [(pt, prof["freq"]) for (p, pt), prof in profiles.items() if p == pitcher_name and prof.get("freq", 0) > 0]
     if not pt_rows:
         return 0.0
@@ -230,55 +212,41 @@ def simulate_expected_delta(
     pitch_types = np.array(pitch_types, dtype=object)
     weights = np.array(weights, dtype=float)
     weights = weights / weights.sum()
-
     total_rows = paths * n_pitches
-
-    # Sample pitch types and prepare indices
     pt_idx = rng.choice(len(pitch_types), size=total_rows, p=weights)
     pt_chosen = pitch_types[pt_idx]
-
-    # Build mean/std arrays for features by indexing once
     def get_arrays(key: str):
         mu = np.array([profiles.get((pitcher_name, pt), {}).get("means", {}).get(key, np.nan) for pt in pitch_types])
         sd = np.array([profiles.get((pitcher_name, pt), {}).get("stds", {}).get(key, np.nan) for pt in pitch_types])
         mu_sel = mu[pt_idx]
         sd_sel = sd[pt_idx]
-        # fallback stds vectorized
         sd_fallback = np.where((~np.isfinite(sd_sel)) | (sd_sel <= 1e-6), np.maximum(np.abs(mu_sel) * 0.05, 0.1), sd_sel)
         return mu_sel, sd_fallback
-
     ss_mu, ss_sd = get_arrays("start_speed")
     sr_mu, sr_sd = get_arrays("spin_rate")
     ax_mu, ax_sd = get_arrays("ax")
     az_mu, az_sd = get_arrays("az")
     px_mu, px_sd = get_arrays("px")
     pz_mu, pz_sd = get_arrays("pz")
-
     start_speed_arr = rng.normal(ss_mu, ss_sd)
     spin_rate_arr = rng.normal(sr_mu, sr_sd)
     ax_arr = rng.normal(ax_mu, ax_sd)
     az_arr = rng.normal(az_mu, az_sd)
     px_arr = rng.normal(px_mu, px_sd)
     pz_arr = rng.normal(pz_mu, pz_sd)
-
-    # Sample batter hand efficiently
     if batter_hand in ("L", "R"):
         batter_hand_arr = np.full(total_rows, batter_hand, dtype=object)
     else:
-        # get L rates per pitch type
         l_rates = np.array([profiles.get((pitcher_name, pt), {}).get("hand_rates", {}).get("L", 0.5) for pt in pitch_types])
         l_rates_sel = l_rates[pt_idx]
         rnd = rng.random(total_rows)
         batter_hand_arr = np.where(rnd < l_rates_sel, "L", "R")
-
-    # Constant columns
     pitcher_hand_arr = np.full(total_rows, pitcher_hand, dtype=object)
     half_arr = np.full(total_rows, half if half in ("Top", "Bottom") else ("Top" if str(half).lower().startswith("t") else "Bottom"), dtype=object)
     balls_arr = np.full(total_rows, balls)
     strikes_arr = np.full(total_rows, strikes)
     li_arr = np.full(total_rows, leverage_index)
     inning_arr = np.full(total_rows, inning)
-
     X = pd.DataFrame({
         'pitch_type': pt_chosen,
         'batter_hand': batter_hand_arr,
@@ -295,7 +263,6 @@ def simulate_expected_delta(
         'inning': inning_arr,
         'half': half_arr,
     })
-    st.info(f"First 5 rows of model input X:\n{X.head().to_string()}")
     preds = mdl.pipeline.predict(X)
     per_path = preds.reshape(paths, n_pitches).sum(axis=1)
     return float(per_path.mean())
