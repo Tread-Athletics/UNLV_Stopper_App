@@ -872,371 +872,294 @@ def main():
     # --- Individual Breakdown ---
     with tabs[0]:
         st.subheader("Individual Pitcher Analysis")
-        # Use session state to track if info is generated
+        if "individual_pitcher_cached" not in st.session_state:
+            st.session_state["individual_pitcher_cached"] = UNLV_PITCHERS[0]
         if "show_individual_info" not in st.session_state:
             st.session_state["show_individual_info"] = False
-        if not st.session_state["show_individual_info"]:
-            selected_pitcher = st.selectbox(
-                "Select Pitcher",
-                options=UNLV_PITCHERS,
-                index=0,
-                key="individual_pitcher"
-            )
-            generate_info = st.button("Generate Info", key="generate_info_btn")
-            if selected_pitcher and generate_info:
-                st.session_state["show_individual_info"] = True
-                st.rerun()
-        else:
-            # Add a back button to reset
-            if st.button("Back", key="back_to_dropdown"):
-                st.session_state["show_individual_info"] = False
-                st.rerun()
-            spinner_placeholder = st.empty()
-            spinner_placeholder.markdown('''
-                <style>
-                .ep-spinner-overlay {
-                    position: fixed;
-                    top: 0; left: 0; width: 100vw; height: 100vh;
-                    background: rgba(0,0,0,1); z-index: 9999;
-                    display: flex; align-items: center; justify-content: center;
-                }
-                .ep-spinner {
-                    border: 8px solid #f3f3f3; /* Light grey */
-                    border-top: 8px solid #CC0000; /* Red */
-                    border-radius: 50%; width: 80px; height: 80px;
-                    animation: ep-spin 1.1s linear infinite;
-                }
-                @keyframes ep-spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                }
-                .ep-spinner-text {
-                    color: #fff; font-size: 1.3rem; margin-top: 24px; text-align: center;
-                    font-weight: 700; letter-spacing: 0.02em;
-                }
-                </style>
-                <div class="ep-spinner-overlay">
-                    <div>
-                        <div class="ep-spinner"></div>
-                        <div class="ep-spinner-text">Generating pitcher info...</div>
-                    </div>
-                </div>
-            ''', unsafe_allow_html=True)
-            try:
-                selected_pitcher = st.session_state.get("individual_pitcher", UNLV_PITCHERS[0])
-                profiles = get_pitcher_profiles(selected_pitcher)
-                if not profiles:
-                    spinner_placeholder.empty()
-                    st.warning("No pitch data found for this pitcher.")
-                    return
 
-                # Display pitch mix
-                st.subheader("Pitch Mix")
-                
-                # Define pitch colors to match R color scheme
-                pitch_colors = {
-                    'ChangeUp': '#32CD32',        # limegreen
-                    'Changeup': '#32CD32',        # limegreen
-                    'Curveball': '#FFA500',       # orange
-                    'Knuckle Curve': '#FFA500',   # orange
-                    'Slurve': '#66CDAA',          # mediumaquamarine
-                    'Sweeper': '#66CDAA',         # mediumaquamarine
-                    'Cutter': '#FF00FF',          # magenta
-                    'Fastball': '#FF0000',        # red
-                    '4-Seam Fastball': '#FF0000', # red
-                    'Knuckleball': '#008000',     # green
-                    'Sinker': '#1E90FF',          # dodgerblue
-                    'Slider': '#8A2BE2',          # blueviolet
-                    'Splitter': '#00FFFF',        # cyan
-                    'Split-Finger': '#00FFFF',    # cyan
-                    'Forkball': '#00FFFF',        # cyan
-                    'Undefined': '#000000'         # black
-                }
-                
-                # Create pitch mix table with clean formatting
-                pitch_data = []
-                for (_, pt), profile in profiles.items():
-                    # Skip undefined/NA pitch types
-                    if pd.isna(pt) or pt == '0' or not pt:
-                        continue
-                        
-                    # Map raw pitch types to standard names
-                    pitch_type_map = {
-                        'Fastball': 'Fastball',
-                        '4-Seam Fastball': 'Fastball',
-                        'FF0000[Fastball]': 'Fastball',
-                        'Slider': 'Slider',
-                        'SL': 'Slider',
-                        'ChangeUp': 'ChangeUp',
-                        'CH': 'ChangeUp',
-                        'Curveball': 'Curveball',
-                        'CU': 'Curveball',
-                        'Sinker': 'Sinker',
-                        'SI': 'Sinker',
-                        'Cutter': 'Cutter',
-                        'FC': 'Cutter'
+        default_index = 0
+        cached_pitcher = st.session_state.get("individual_pitcher_cached")
+        if cached_pitcher in UNLV_PITCHERS:
+            default_index = UNLV_PITCHERS.index(cached_pitcher)
+
+        selected_pitcher = st.selectbox(
+            "Select Pitcher",
+            options=UNLV_PITCHERS,
+            index=default_index,
+            key="individual_pitcher_select"
+        )
+        generate_info = st.button("Generate Info", key="generate_info_btn")
+        if generate_info:
+            st.session_state["show_individual_info"] = True
+            st.session_state["individual_pitcher_cached"] = selected_pitcher
+
+        if st.session_state.get("show_individual_info"):
+            pitcher_name = st.session_state.get("individual_pitcher_cached", selected_pitcher)
+            with st.spinner("Generating pitcher info..."):
+                try:
+                    profiles = get_pitcher_profiles(pitcher_name)
+                    if not profiles:
+                        st.session_state["show_individual_info"] = False
+                        st.warning("No pitch data found for this pitcher.")
+                        return
+
+                    pitch_colors = {
+                        'ChangeUp': '#32CD32',        # limegreen
+                        'Changeup': '#32CD32',        # limegreen
+                        'Curveball': '#FFA500',       # orange
+                        'Knuckle Curve': '#FFA500',   # orange
+                        'Slurve': '#66CDAA',          # mediumaquamarine
+                        'Sweeper': '#66CDAA',         # mediumaquamarine
+                        'Cutter': '#FF00FF',          # magenta
+                        'Fastball': '#FF0000',        # red
+                        '4-Seam Fastball': '#FF0000', # red
+                        'Knuckleball': '#008000',     # green
+                        'Sinker': '#1E90FF',          # dodgerblue
+                        'Slider': '#8A2BE2',          # blueviolet
+                        'Splitter': '#00FFFF',        # cyan
+                        'Split-Finger': '#00FFFF',    # cyan
+                        'Forkball': '#00FFFF',        # cyan
+                        'Undefined': '#000000'         # black
                     }
-                    
-                    # Clean and standardize pitch type
-                    clean_pt = pitch_type_map.get(pt.replace('[', '').replace(']', ''), pt)
-                    
-                    # Only include pitches thrown at least 3% of the time
-                    if profile.get('freq', 0) >= 0.03:
-                        pitch_data.append({
-                            'FREQ': float(f"{profile['freq']*100:.1f}"),
-                            'VELO': f"{profile['means']['start_speed']:.1f}",
-                            'VERT': f"{profile['means']['InducedVertBreak']:.1f}",
-                            'HORZ': f"{profile['means']['HorzBreak']:.1f}",
-                            'HEIGHT': f"{profile['means']['release_height']:.1f}",
-                            'SIDE': f"{profile['means']['release_side']:.1f}",
-                            'PITCH': clean_pt
+
+                    st.subheader("Pitch Mix")
+
+                    pitch_data = []
+                    for (_, pt), profile in profiles.items():
+                        if pd.isna(pt) or pt == '0' or not pt:
+                            continue
+
+                        pitch_type_map = {
+                            'Fastball': 'Fastball',
+                            '4-Seam Fastball': 'Fastball',
+                            'FF0000[Fastball]': 'Fastball',
+                            'Slider': 'Slider',
+                            'SL': 'Slider',
+                            'ChangeUp': 'ChangeUp',
+                            'CH': 'ChangeUp',
+                            'Curveball': 'Curveball',
+                            'CU': 'Curveball',
+                            'Sinker': 'Sinker',
+                            'SI': 'Sinker',
+                            'Cutter': 'Cutter',
+                            'FC': 'Cutter'
+                        }
+
+                        clean_pt = pitch_type_map.get(pt.replace('[', '').replace(']', ''), pt)
+                        if profile.get('freq', 0) >= 0.03:
+                            pitch_data.append({
+                                'FREQ': float(f"{profile['freq']*100:.1f}"),
+                                'VELO': f"{profile['means']['start_speed']:.1f}",
+                                'VERT': f"{profile['means']['InducedVertBreak']:.1f}",
+                                'HORZ': f"{profile['means']['HorzBreak']:.1f}",
+                                'HEIGHT': f"{profile['means']['release_height']:.1f}",
+                                'SIDE': f"{profile['means']['release_side']:.1f}",
+                                'PITCH': clean_pt
+                            })
+
+                    pitch_mix = pd.DataFrame(pitch_data)
+                    if not pitch_mix.empty:
+                        pitch_mix = pitch_mix.sort_values('FREQ', ascending=False)
+                        pitch_mix['FREQ'] = pitch_mix['FREQ'].map(lambda x: f"{x:.1f}%")
+                        pitch_mix = pitch_mix[['PITCH', 'FREQ', 'VELO', 'VERT', 'HORZ', 'HEIGHT', 'SIDE']]
+
+                    def style_pitch_type(row):
+                        styles = [''] * len(row)
+                        pitch_idx = row.index.get_loc('PITCH')
+                        pitch_type = row['PITCH']
+                        color = pitch_colors.get(pitch_type, '#FFFFFF')
+                        styles[pitch_idx] = f'background-color: {color}; color: white; font-weight: 800'
+                        return styles
+
+                    numeric_cols = ['FREQ', 'VELO', 'VERT', 'HORZ', 'HEIGHT', 'SIDE']
+                    styled_df = (
+                        pitch_mix
+                        .style
+                        .apply(style_pitch_type, axis=1)
+                        .set_properties(subset=numeric_cols, **{
+                            'font-weight': '800',
+                            'font-size': '1.05rem',
+                            'color': '#F3F4F6',
+                            'text-align': 'right'
                         })
-                
-                # Convert to DataFrame and sort by frequency
-                pitch_mix = pd.DataFrame(pitch_data)
-                if not pitch_mix.empty:
-                    pitch_mix = pitch_mix.sort_values('FREQ', ascending=False)
-                    # Format frequency with percent sign for display
-                    pitch_mix['FREQ'] = pitch_mix['FREQ'].map(lambda x: f"{x:.1f}%")
-                    
-                    # Reorder columns to match image (without '#' column)
-                    pitch_mix = pitch_mix[['PITCH', 'FREQ', 'VELO', 'VERT', 'HORZ', 'HEIGHT', 'SIDE']]
-                    
-                # Create a styled dataframe with colored pitch type column only
-                def style_pitch_type(row):
-                    styles = [''] * len(row)  # Default style for all cells
-                    pitch_idx = row.index.get_loc('PITCH')
-                    pitch_type = row['PITCH']
-                    
-                    # Get color for this pitch type
-                    color = pitch_colors.get(pitch_type, '#FFFFFF')
-                    
-                    # Only color the pitch type cell
-                    styles[pitch_idx] = f'background-color: {color}; color: white; font-weight: 800'
-                    
-                    return styles
+                    )
 
-                # Apply styling to PITCH column and set numeric columns larger/bolder
-                numeric_cols = ['FREQ','VELO','VERT','HORZ','HEIGHT','SIDE']
-                styled_df = (
-                    pitch_mix
-                    .style
-                    .apply(style_pitch_type, axis=1)
-                    .set_properties(subset=numeric_cols, **{
-                        'font-weight': '800',
-                        'font-size': '1.05rem',
-                        'color': '#F3F4F6',
-                        'text-align': 'right'
-                    })
-                )
-                
-                # Display with custom CSS
-                st.markdown("""
-                    <style>
-                    /* Simple table width control */
-                    [data-testid="stDataFrame"] {
-                        width: 45vw !important;
-                        max-width: 45vw !important;
-                    }
-                    
-                    /* Ensure table stays in its container */
-                    [data-testid="column"] {
-                        width: 45vw !important;
-                        min-width: 45vw !important;
-                    }
-                    </style>
-                """, unsafe_allow_html=True)
-                
-                # Force horizontal layout with flexbox
-                st.markdown("""
-                    <style>
-                        /* Container styles */
-                        [data-testid="stHorizontalBlock"] {
-                            display: flex !important;
-                            flex-direction: row !important;
-                            flex-wrap: nowrap !important;
-                            justify-content: flex-start !important;
-                            gap: 1rem !important;
-                            max-width: 100% !important;
+                    st.markdown("""
+                        <style>
+                        [data-testid="stDataFrame"] {
+                            width: 45vw !important;
+                            max-width: 45vw !important;
                         }
-                        
-                        /* Both columns exactly 50% */
+
                         [data-testid="column"] {
-                            width: 50% !important;
-                            flex: 0 0 50% !important;
-                            min-width: 0 !important;
+                            width: 45vw !important;
+                            min-width: 45vw !important;
                         }
-                        
-                        /* Ensure content doesn't wrap */
-                        [data-testid="stVerticalBlock"] {
-                            flex-wrap: nowrap !important;
-                        }
-                    </style>
-                """, unsafe_allow_html=True)
+                        </style>
+                    """, unsafe_allow_html=True)
 
-                # Create equal-width columns for layout only (not navigation)
-                cols = st.columns([1, 1])
-                
-                # Left column - Table (45% viewport width)
-                with cols[0]:
-                    st.dataframe(
-                        styled_df,
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                    try:
-                        if not _ensure_xgboost():
-                            raise ModuleNotFoundError("xgboost is not installed and auto-install failed")
-                        raw_tm = _PRACTICE_BY_PITCHER.get(selected_pitcher)
-                        if raw_tm is None or raw_tm.empty:
-                            raw_tm = _load_pitcher_tm_raw(selected_pitcher)
-                        if raw_tm.empty:
-                            st.warning("No TrackMan rows found for this pitcher since 2025-01-01.")
-                        else:
-                            out_dir = Path(__file__).parent / "outputs" / "streamlit_ep_plots"
-                            out_dir.mkdir(parents=True, exist_ok=True)
-                            cli_args = [
-                                "--pitcher", selected_pitcher,
-                                "--query-since", "2025-01-01",
-                                "--save-dir", str(out_dir.resolve()),
-                                "--models-root", ".",
-                                "--bins", "20",
-                                "--cmin", "0",
-                                "--cmax", "200"
-                            ]
-                            import subprocess
-                            import sys
-                            result = subprocess.run(
-                                [sys.executable, "execution_plus_cli2.py", *cli_args],
-                                capture_output=True,
-                                text=True
-                            )
-                            print("STDOUT:", result.stdout)
-                            print("STDERR:", result.stderr)
-                            if result.returncode != 0:
-                                st.error(f"Execution+ subprocess failed: {result.stderr}")
-                            combined_img = out_dir / f"execution_plus_{selected_pitcher.replace(', ', '_')}_platoon.png"
-                            if not combined_img.exists():
-                                st.error(f"Expected output file not found: {combined_img}")
+                    st.markdown("""
+                        <style>
+                            [data-testid="stHorizontalBlock"] {
+                                display: flex !important;
+                                flex-direction: row !important;
+                                flex-wrap: nowrap !important;
+                                justify-content: flex-start !important;
+                                gap: 1rem !important;
+                                max-width: 100% !important;
+                            }
+
+                            [data-testid="column"] {
+                                width: 50% !important;
+                                flex: 0 0 50% !important;
+                                min-width: 0 !important;
+                            }
+
+                            [data-testid="stVerticalBlock"] {
+                                flex-wrap: nowrap !important;
+                            }
+                        </style>
+                    """, unsafe_allow_html=True)
+
+                    cols = st.columns([1, 1])
+
+                    with cols[0]:
+                        st.dataframe(
+                            styled_df,
+                            hide_index=True,
+                            use_container_width=True
+                        )
+                        try:
+                            if not _ensure_xgboost():
+                                raise ModuleNotFoundError("xgboost is not installed and auto-install failed")
+                            raw_tm = _PRACTICE_BY_PITCHER.get(pitcher_name)
+                            if raw_tm is None or raw_tm.empty:
+                                raw_tm = _load_pitcher_tm_raw(pitcher_name)
+                            if raw_tm.empty:
+                                st.warning("No TrackMan rows found for this pitcher since 2025-01-01.")
                             else:
-                                st.image(str(combined_img), use_container_width=True)
-                                spinner_placeholder.empty()  # Remove overlay as soon as PNG is shown
-                    except Exception as e:
-                        st.error(f"Error generating Execution+ plots: {str(e)}")
+                                out_dir = Path(__file__).parent / "outputs" / "streamlit_ep_plots"
+                                out_dir.mkdir(parents=True, exist_ok=True)
+                                cli_args = [
+                                    "--pitcher", pitcher_name,
+                                    "--query-since", "2025-01-01",
+                                    "--save-dir", str(out_dir.resolve()),
+                                    "--models-root", ".",
+                                    "--bins", "20",
+                                    "--cmin", "0",
+                                    "--cmax", "200"
+                                ]
+                                import subprocess
+                                import sys
+                                result = subprocess.run(
+                                    [sys.executable, "execution_plus_cli2.py", *cli_args],
+                                    capture_output=True,
+                                    text=True
+                                )
+                                print("STDOUT:", result.stdout)
+                                print("STDERR:", result.stderr)
+                                if result.returncode != 0:
+                                    st.error(f"Execution+ subprocess failed: {result.stderr}")
+                                combined_img = out_dir / f"execution_plus_{pitcher_name.replace(', ', '_')}_platoon.png"
+                                if not combined_img.exists():
+                                    st.error(f"Expected output file not found: {combined_img}")
+                                else:
+                                    st.image(str(combined_img), use_container_width=True)
+                        except Exception as e:
+                            st.error(f"Error generating Execution+ plots: {str(e)}")
 
-                # Right column - Plot (will be added later)
-                with cols[1]:
-                    pass  # Plot will be added later
-                
-                # Filter out undefined pitch types
-                movement_data = pd.DataFrame([
-                    {
-                        'pitch_type': pt,
-                        'HorzBreak': profile['means']['HorzBreak'],
-                        'InducedVertBreak': profile['means']['InducedVertBreak'],
-                        'start_speed': profile['means']['start_speed']
-                    }
-                    for (_, pt), profile in profiles.items()
-                    if (not pd.isna(pt)) and pt != '0' and pt and (profile.get('freq', 0) >= 0.03)
-                ])
-                
-                # Create plot using Plotly
-                import plotly.express as px
-                import plotly.graph_objects as go
-                
-                # Create scatter plot with bigger markers
-                fig = px.scatter(
-                    movement_data,
-                    x='HorzBreak',
-                    y='InducedVertBreak',
-                    color='pitch_type',
-                    color_discrete_map=pitch_colors,  # Use same colors as table
-                    labels={
-                        'HorzBreak': 'Horizontal Break (in.)',
-                        'InducedVertBreak': 'Induced Vertical Break (in.)'
-                    }
-                )
-                
-                # Update marker size and opacity
-                fig.update_traces(
-                    marker=dict(
-                        size=20,          # Bigger markers
-                        line=dict(        # Add white border
-                            width=2,
-                            color='white'
-                        ),
-                        opacity=0.8       # Slight transparency
-                    )
-                )
-                
-                # Update layout for static, fixed-ratio plot
-                fig.update_layout(
-                    width=550,              # Adjusted width for 50% column
-                    height=600,             # Match table height
-                    showlegend=True,
-                    legend=dict(
-                        orientation="h",     # Horizontal legend
-                        yanchor="bottom",
-                        y=-0.15,
-                        xanchor="left",
-                        x=0
-                    ),
-                    margin=dict(l=10, r=10, t=10, b=30),  # Minimal margins
-                    plot_bgcolor='black',
-                    paper_bgcolor='black',
-                    font=dict(color='white', size=16),   # slightly larger text
-                    xaxis=dict(
-                        range=[-20, 20],
-                        gridcolor='rgba(128, 128, 128, 0.2)',
-                        zerolinecolor='rgba(255, 255, 255, 0.5)',
-                        zerolinewidth=2,
-                        showgrid=True,
-                        zeroline=True
-                    ),
-                    yaxis=dict(
-                        range=[-20, 20],
-                        gridcolor='rgba(128, 128, 128, 0.2)',
-                        zerolinecolor='rgba(255, 255, 255, 0.5)',
-                        zerolinewidth=2,
-                        showgrid=True,
-                        zeroline=True
-                    ),
-                )
-                
-                # Disable zoom and pan
-                fig.update_xaxes(fixedrange=True)
-                fig.update_yaxes(fixedrange=True)
-                
-                # Display plot in the right column
-                with cols[1]:
-                    st.plotly_chart(
-                        fig,
-                        use_container_width=True,
-                        config={'displayModeBar': False}
-                    )
+                    with cols[1]:
+                        movement_data = pd.DataFrame([
+                            {
+                                'pitch_type': pt,
+                                'HorzBreak': profile['means']['HorzBreak'],
+                                'InducedVertBreak': profile['means']['InducedVertBreak'],
+                                'start_speed': profile['means']['start_speed']
+                            }
+                            for (_, pt), profile in profiles.items()
+                            if (not pd.isna(pt)) and pt != '0' and pt and (profile.get('freq', 0) >= 0.03)
+                        ])
 
-                # Situation Analysis (no new tabs/columns for navigation)
-                with cols[1]:  # Right column - continue after plot
-                    st.subheader("Situation Analysis")
-                    if selected_pitcher in DO_NOT_PITCH:
-                        st.error(f"⚠️ WARNING: {selected_pitcher} is on the Do Not Pitch list. Scores will be penalized by -15 points.")
-                    # Run simulation automatically
-                    with st.spinner("Analyzing situations..."):
+                        import plotly.express as px
+
+                        fig = px.scatter(
+                            movement_data,
+                            x='HorzBreak',
+                            y='InducedVertBreak',
+                            color='pitch_type',
+                            color_discrete_map=pitch_colors,
+                            labels={
+                                'HorzBreak': 'Horizontal Break (in.)',
+                                'InducedVertBreak': 'Induced Vertical Break (in.)'
+                            }
+                        )
+
+                        fig.update_traces(
+                            marker=dict(
+                                size=20,
+                                line=dict(width=2, color='white'),
+                                opacity=0.8
+                            )
+                        )
+
+                        fig.update_layout(
+                            width=550,
+                            height=600,
+                            showlegend=True,
+                            legend=dict(
+                                orientation="h",
+                                yanchor="bottom",
+                                y=-0.15,
+                                xanchor="left",
+                                x=0
+                            ),
+                            margin=dict(l=10, r=10, t=10, b=30),
+                            plot_bgcolor='black',
+                            paper_bgcolor='black',
+                            font=dict(color='white', size=16),
+                            xaxis=dict(
+                                range=[-20, 20],
+                                gridcolor='rgba(128, 128, 128, 0.2)',
+                                zerolinecolor='rgba(255, 255, 255, 0.5)',
+                                zerolinewidth=2,
+                                showgrid=True,
+                                zeroline=True
+                            ),
+                            yaxis=dict(
+                                range=[-20, 20],
+                                gridcolor='rgba(128, 128, 128, 0.2)',
+                                zerolinecolor='rgba(255, 255, 255, 0.5)',
+                                zerolinewidth=2,
+                                showgrid=True,
+                                zeroline=True
+                            ),
+                        )
+
+                        fig.update_xaxes(fixedrange=True)
+                        fig.update_yaxes(fixedrange=True)
+
+                        st.plotly_chart(
+                            fig,
+                            use_container_width=True,
+                            config={'displayModeBar': False}
+                        )
+
+                        st.subheader("Situation Analysis")
+                        if pitcher_name in DO_NOT_PITCH:
+                            st.error(f"⚠️ WARNING: {pitcher_name} is on the Do Not Pitch list. Scores will be penalized by -15 points.")
                         try:
                             mdl = load_or_train_pitch_delta_model(df_all)
                             results_df = simulate_all_situations(
-                                selected_pitcher=selected_pitcher,
+                                selected_pitcher=pitcher_name,
                                 profiles=profiles,
                                 mdl=mdl,
                                 leverage_from_state=leverage_from_state
                             )
                             analyze_simulation_results(results_df)
                         except Exception as e:
-                            spinner_placeholder.empty()
                             st.error(f"Error processing data: {str(e)}")
-            except Exception as e:
-                spinner_placeholder.empty()
-                st.error(f"Error processing data: {str(e)}")
+                except Exception as e:
+                    st.error(f"Error processing data: {str(e)}")
 
     # --- Practice Planning ---
     with tabs[1]:

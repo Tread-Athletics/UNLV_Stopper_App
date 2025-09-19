@@ -34,6 +34,27 @@ GLOBAL_BASELINE = {'mean': -0.1, 'sd': 0.1}
 PHASES = ['Early', 'Middle', 'Late']
 SCORE_CONTEXTS = ['Down Lots', 'Down Little', 'Tight', 'Up Little', 'Up Lots']
 
+BASE_PITCH_COUNT = 16
+PHASE_WORKLOAD_MULTIPLIER = {
+    'Early': 1.15,
+    'Middle': 1.0,
+    'Late': 0.75,
+}
+SCORE_WORKLOAD_MULTIPLIER = {
+    'Down Lots': 1.25,
+    'Down Little': 1.1,
+    'Tight': 1.0,
+    'Up Little': 0.9,
+    'Up Lots': 0.8,
+}
+SCORE_COUNT_TENDENCIES = {
+    'Down Lots': (2, 1),
+    'Down Little': (2, 1),
+    'Tight': (1, 1),
+    'Up Little': (1, 0),
+    'Up Lots': (0, 0),
+}
+
 
 def standardize_score(score: float, baseline: dict | None = None) -> float:
     """Standardize a score to a 100-based scale with SD=10."""
@@ -156,21 +177,33 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
                 on3=int(situation['runners'][2]),
                 score_diff=situation['score_diff']
             )
-            # Simulate performance
+
+            phase = situation['phase']
+            score_ctx = situation['score_ctx']
+            phase_mult = PHASE_WORKLOAD_MULTIPLIER.get(phase, 1.0)
+            score_mult = SCORE_WORKLOAD_MULTIPLIER.get(score_ctx, 1.0)
+            base_workload = BASE_PITCH_COUNT * phase_mult * score_mult
             seed_material = f"{selected_pitcher}|{situation['game_state']}|{i}"
             seed = int(hashlib.sha256(seed_material.encode("utf-8")).hexdigest()[:16], 16)
+            workload_jitter = (seed % 3) - 1  # -1, 0, or 1 pitches of noise
+            n_pitches = int(round(base_workload)) + workload_jitter
+            n_pitches = max(8, min(28, n_pitches))
+
+            balls, strikes = SCORE_COUNT_TENDENCIES.get(score_ctx, (1, 1))
+            if phase == 'Late':
+                strikes = min(strikes + 1, 2)
             exp_delta = simulate_expected_delta(
                 mdl=mdl,
                 profiles={k: v for k, v in profiles.items() if k[0] == selected_pitcher},
                 df_all=None,  # Not needed for pure stuff-based simulation
                 pitcher_name=selected_pitcher,
-                n_pitches=15,
+                n_pitches=n_pitches,
                 batter_hand='All',  # Test against both L/R
                 half=situation['half'],
                 inning=float(situation['inning']),
                 leverage_index=float(leverage),
-                balls=0,  # Starting fresh count
-                strikes=0,
+                balls=balls,
+                strikes=strikes,
                 paths=500,  # 500 Monte Carlo paths
                 pitcher_hand=pitcher_hand,
                 rng=seed,
@@ -192,6 +225,9 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
                 'Expected_Impact': exp_delta,
                 'Stopper+': standardized_score,
                 'Pitcher_Hand': pitcher_hand,
+                'Pitch_Workload': n_pitches,
+                'Count_Balls': balls,
+                'Count_Strikes': strikes,
             })
         except Exception as e:
             continue
@@ -215,7 +251,8 @@ def analyze_simulation_results(results_df: pd.DataFrame):
     phase_analysis = results_df.groupby(['Phase', 'Score_Context']).agg(
         Impact=('Expected_Impact', 'mean'),
         Samples=('Expected_Impact', 'count'),
-        Avg_Leverage=('Leverage', 'mean')
+        Avg_Leverage=('Leverage', 'mean'),
+        Avg_Workload=('Pitch_Workload', 'mean')
     ).round(4)
 
     baseline_path = os.path.join(os.path.dirname(__file__), 'team_role_baselines.csv')
@@ -242,7 +279,8 @@ def analyze_simulation_results(results_df: pd.DataFrame):
                     'Impact': impact,
                     'Z': z,
                     'LI': data['Avg_Leverage'],
-                    'Samples': data['Samples']
+                    'Samples': data['Samples'],
+                    'Workload': data['Avg_Workload']
                 })
             except KeyError:
                 matrix_data.append({
@@ -251,7 +289,8 @@ def analyze_simulation_results(results_df: pd.DataFrame):
                     'Impact': np.nan,
                     'Z': 0,
                     'LI': np.nan,
-                    'Samples': 0
+                    'Samples': 0,
+                    'Workload': np.nan
                 })
     matrix_df = pd.DataFrame(matrix_data)
     pivot = matrix_df.pivot(index='Phase', columns='Score', values='Impact').reindex(index=PHASES, columns=SCORE_CONTEXTS)
@@ -284,6 +323,11 @@ def analyze_simulation_results(results_df: pd.DataFrame):
 
     styled_pivot = pivot.style.apply(color_df, z_pivot=z_pivot, axis=None).format(precision=3)
     st.dataframe(styled_pivot, use_container_width=True)
+
+    workload_pivot = matrix_df.pivot(index='Phase', columns='Score', values='Workload').reindex(index=PHASES, columns=SCORE_CONTEXTS)
+    if not workload_pivot.isna().all().all():
+        st.caption("Avg simulated pitch workload (pitches) by situation")
+        st.dataframe(workload_pivot.round(1), use_container_width=True)
 
     # --- Rest of function unchanged (role recommendations, etc) ---
     def get_role_recommendations(matrix_df: pd.DataFrame) -> list:
