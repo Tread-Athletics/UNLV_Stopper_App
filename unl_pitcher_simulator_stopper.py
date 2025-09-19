@@ -888,6 +888,12 @@ def main():
             index=default_index,
             key="individual_pitcher_select"
         )
+        if (
+            st.session_state.get("show_individual_info")
+            and selected_pitcher != st.session_state.get("individual_pitcher_cached")
+        ):
+            st.session_state["show_individual_info"] = False
+
         generate_info = st.button("Generate Info", key="generate_info_btn")
         if generate_info:
             st.session_state["show_individual_info"] = True
@@ -1145,8 +1151,6 @@ def main():
                         )
 
                         st.subheader("Situation Analysis")
-                        if pitcher_name in DO_NOT_PITCH:
-                            st.error(f"⚠️ WARNING: {pitcher_name} is on the Do Not Pitch list. Scores will be penalized by -15 points.")
                         try:
                             mdl = load_or_train_pitch_delta_model(df_all)
                             results_df = simulate_all_situations(
