@@ -206,11 +206,6 @@ def simulate_expected_delta(
 ) -> float:
     import pandas as pd
     import polars as pl
-    try:
-        import streamlit as st
-        use_st = True
-    except ImportError:
-        use_st = False
     rng = rng or np.random.default_rng(42)
     pt_rows = [(pt, prof["freq"]) for (p, pt), prof in profiles.items() if p == pitcher_name and prof.get("freq", 0) > 0]
     if not pt_rows:
@@ -275,14 +270,6 @@ def simulate_expected_delta(
         X = X.to_pandas()
     elif not isinstance(X, pd.DataFrame):
         raise ValueError("Input to model must be a pandas DataFrame.")
-    # Print 5 random rows and dtypes
-    sample_X = X.sample(n=min(5, len(X)), random_state=42) if len(X) > 5 else X
-    if use_st:
-        st.write("Model input sample (random 5):", sample_X)
-        st.write("Model input dtypes:", X.dtypes)
-    else:
-        print("Model input sample (random 5):\n", sample_X)
-        print("Model input dtypes:\n", X.dtypes)
     preds = mdl.pipeline.predict(X)
     per_path = preds.reshape(paths, n_pitches).sum(axis=1)
     return float(per_path.mean())

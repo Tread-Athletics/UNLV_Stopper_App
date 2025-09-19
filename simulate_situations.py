@@ -201,7 +201,6 @@ def analyze_simulation_results(results_df: pd.DataFrame):
     import streamlit as st
     import os
     import sklearn
-    st.info(f'scikit-learn version: {sklearn.__version__}')
 
     if results_df.empty:
         st.error("No results to analyze")
