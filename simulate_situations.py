@@ -6,6 +6,7 @@ from typing import Dict, Any
 from stopper_predictor import simulate_expected_delta
 import os
 import sklearn
+import hashlib
 
 _LEVERAGE_TABLE = None
 
@@ -156,6 +157,8 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
                 score_diff=situation['score_diff']
             )
             # Simulate performance
+            seed_material = f"{selected_pitcher}|{situation['game_state']}|{i}"
+            seed = int(hashlib.sha256(seed_material.encode("utf-8")).hexdigest()[:16], 16)
             exp_delta = simulate_expected_delta(
                 mdl=mdl,
                 profiles={k: v for k, v in profiles.items() if k[0] == selected_pitcher},
@@ -169,7 +172,8 @@ def simulate_all_situations(selected_pitcher: str, profiles: Dict, mdl: Any, lev
                 balls=0,  # Starting fresh count
                 strikes=0,
                 paths=500,  # 500 Monte Carlo paths
-                pitcher_hand=pitcher_hand
+                pitcher_hand=pitcher_hand,
+                rng=seed,
             )
             if i < 10:
                 predictions_debug.append(exp_delta)

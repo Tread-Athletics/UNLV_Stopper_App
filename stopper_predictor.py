@@ -206,7 +206,10 @@ def simulate_expected_delta(
 ) -> float:
     import pandas as pd
     import polars as pl
-    rng = rng or np.random.default_rng(42)
+    if isinstance(rng, (int, np.integer)):
+        rng = np.random.default_rng(int(rng))
+    elif rng is None:
+        rng = np.random.default_rng()
     pt_rows = [(pt, prof["freq"]) for (p, pt), prof in profiles.items() if p == pitcher_name and prof.get("freq", 0) > 0]
     if not pt_rows:
         return 0.0
