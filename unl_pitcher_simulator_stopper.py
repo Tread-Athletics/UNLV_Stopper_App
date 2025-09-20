@@ -387,7 +387,7 @@ def get_pitcher_profiles(pitcher_name=None):
         # Create the IN clause with proper string formatting
         pitcher_list = [f"'{p}'" for p in UNLV_PITCHERS]
         pitcher_string = ", ".join(pitcher_list)
-        where_clause = f"WHERE Pitcher IN ({pitcher_string})"
+        where_clause = f"WHERE Pitcher IN ({pitcher_string}) and `Date` > '2025-08-01'"
         
     query = f"""
     SELECT 
